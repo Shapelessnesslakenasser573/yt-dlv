@@ -150,7 +150,13 @@ async fn handle_video(info: InfoDict, cli: &cli::Cli, http: &HttpClient) -> Resu
         return Ok(());
     }
 
-    let spec = cli.format.as_deref().unwrap_or(ytdlv_core::DEFAULT_FORMAT);
+    // With -x and no explicit -f, prefer audio (yt-dlp behaviour).
+    let default_spec = if cli.extract_audio && cli.format.is_none() {
+        "ba/bestaudio/best"
+    } else {
+        ytdlv_core::DEFAULT_FORMAT
+    };
+    let spec = cli.format.as_deref().unwrap_or(default_spec);
     let selector = FormatSelector::parse(spec).map_err(|e| anyhow!("bad format selector: {e}"))?;
     let selection = selector
         .select(&info.formats)
@@ -170,7 +176,19 @@ async fn handle_video(info: InfoDict, cli: &cli::Cli, http: &HttpClient) -> Resu
         return Ok(());
     }
 
-    download_selection(&selection, &info, cli, http).await
+    let media = download_selection(&selection, &info, cli, http).await?;
+
+    if cli.extract_audio {
+        let audio = ffmpeg::extract_audio(&media, &cli.audio_format)
+            .context("extracting audio with ffmpeg")?;
+        if audio != media {
+            let _ = std::fs::remove_file(&media);
+        }
+        println!("Saved: {}", audio.display());
+    } else {
+        println!("Saved: {}", media.display());
+    }
+    Ok(())
 }
 
 /// Handle `--print FIELD`: print each requested field, one per line.
@@ -222,12 +240,13 @@ fn field_value(info: &InfoDict, name: &str) -> Option<String> {
     }
 }
 
+/// Download the selection and return the final media path on disk.
 async fn download_selection(
     selection: &Selection,
     info: &InfoDict,
     cli: &cli::Cli,
     http: &HttpClient,
-) -> Result<()> {
+) -> Result<PathBuf> {
     let dl_opts = DownloadOptions {
         overwrite: cli.force_overwrites,
         quiet: cli.quiet,
@@ -237,8 +256,7 @@ async fn download_selection(
         let f = &selection.formats[0];
         let dest = render_output(cli, info, &f.ext);
         download_format(http, f, &dest, &dl_opts).await?;
-        println!("Saved: {}", dest.display());
-        return Ok(());
+        return Ok(dest);
     }
 
     // Merge path: download each part to a temp file, then mux.
@@ -271,16 +289,13 @@ async fn download_selection(
             ffmpeg::merge(&v, &a, &final_path).context("merging video and audio with ffmpeg")?;
             let _ = std::fs::remove_file(&v);
             let _ = std::fs::remove_file(&a);
-            println!("Saved: {}", final_path.display());
+            Ok(final_path)
         }
-        _ => {
-            bail!(
-                "could not identify separate video and audio streams to merge \
-                 (downloaded parts left in place)"
-            );
-        }
+        _ => bail!(
+            "could not identify separate video and audio streams to merge \
+             (downloaded parts left in place)"
+        ),
     }
-    Ok(())
 }
 
 fn render_output(cli: &cli::Cli, info: &InfoDict, ext: &str) -> PathBuf {

@@ -1,10 +1,51 @@
 //! Thin ffmpeg wrapper for muxing. Like yt-dlp, we shell out to the `ffmpeg`
 //! binary rather than linking libav.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{bail, Result};
+
+/// Extract/convert the audio track of `input` to `audio_format` (`best` copies
+/// the source codec into m4a). Returns the produced path.
+pub fn extract_audio(input: &Path, audio_format: &str) -> Result<PathBuf> {
+    ensure_available()?;
+    let (ext, codec_args): (&str, &[&str]) = match audio_format {
+        "mp3" => ("mp3", &["-c:a", "libmp3lame"]),
+        "aac" | "m4a" => ("m4a", &["-c:a", "aac"]),
+        "opus" => ("opus", &["-c:a", "libopus"]),
+        "flac" => ("flac", &["-c:a", "flac"]),
+        "wav" => ("wav", &[]),
+        "ogg" | "vorbis" => ("ogg", &["-c:a", "libvorbis"]),
+        _ => ("m4a", &["-c:a", "copy"]), // "best": keep source codec
+    };
+    let final_out = input.with_extension(ext);
+    // Write to a temp name first so input==output (e.g. .m4a -> .m4a) is safe.
+    let tmp_out = input.with_extension(format!("extract.{ext}"));
+
+    let ok = run_extract(input, &tmp_out, codec_args)?;
+    if !ok {
+        // "best" copy can fail if the container rejects the codec; re-encode.
+        let recovered = audio_format == "best" && run_extract(input, &tmp_out, &["-c:a", "aac"])?;
+        if !recovered {
+            let _ = std::fs::remove_file(&tmp_out);
+            bail!("ffmpeg failed to extract audio");
+        }
+    }
+    std::fs::rename(&tmp_out, &final_out)?;
+    Ok(final_out)
+}
+
+fn run_extract(input: &Path, output: &Path, codec_args: &[&str]) -> Result<bool> {
+    Ok(Command::new("ffmpeg")
+        .args(["-y", "-loglevel", "warning", "-i"])
+        .arg(input)
+        .arg("-vn")
+        .args(codec_args)
+        .arg(output)
+        .status()?
+        .success())
+}
 
 /// Mux a video-only and an audio-only file into `out` by stream copy (no
 /// re-encode). Falls back to `.mkv` if the chosen container rejects the codecs.
