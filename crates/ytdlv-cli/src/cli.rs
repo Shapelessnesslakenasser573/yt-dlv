@@ -41,6 +41,14 @@ pub struct Cli {
     #[arg(long = "flat-playlist")]
     pub flat_playlist: bool,
 
+    /// Extract audio after download (requires ffmpeg).
+    #[arg(short = 'x', long = "extract-audio")]
+    pub extract_audio: bool,
+
+    /// Audio format for -x: best, mp3, m4a, aac, opus, flac, wav, ogg.
+    #[arg(long = "audio-format", default_value = "best")]
+    pub audio_format: String,
+
     /// Write the info JSON next to the downloaded file.
     #[arg(long = "write-info-json")]
     pub write_info_json: bool,
