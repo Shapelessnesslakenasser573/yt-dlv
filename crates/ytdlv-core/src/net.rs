@@ -105,6 +105,7 @@ pub struct HttpClientBuilder {
     user_agent: Option<String>,
     proxy: Option<String>,
     default_headers: Vec<(String, String)>,
+    cookie_jar: Option<Arc<reqwest::cookie::Jar>>,
 }
 
 impl HttpClientBuilder {
@@ -123,6 +124,13 @@ impl HttpClientBuilder {
         self
     }
 
+    /// Pre-load a cookie jar (e.g. from `--cookies`); received cookies are also
+    /// stored in it for the session.
+    pub fn cookie_jar(mut self, jar: Arc<reqwest::cookie::Jar>) -> Self {
+        self.cookie_jar = Some(jar);
+        self
+    }
+
     pub fn build(self) -> anyhow::Result<HttpClient> {
         let mut headers = HeaderMap::new();
         for (k, v) in &self.default_headers {
@@ -133,9 +141,15 @@ impl HttpClientBuilder {
         let mut builder = reqwest::Client::builder()
             .user_agent(self.user_agent.unwrap_or_else(|| DEFAULT_USER_AGENT.to_string()))
             .default_headers(headers)
-            .cookie_store(true)
             .timeout(Duration::from_secs(60))
             .connect_timeout(Duration::from_secs(20));
+
+        // A provided jar both supplies preloaded cookies and stores new ones;
+        // otherwise use reqwest's default in-memory store.
+        match self.cookie_jar {
+            Some(jar) => builder = builder.cookie_provider(jar),
+            None => builder = builder.cookie_store(true),
+        }
 
         // Proxy precedence:
         //   Some(non-empty) -> route all traffic through it (http/https/socks5).

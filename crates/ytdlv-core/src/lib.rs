@@ -1,6 +1,7 @@
 //! Core types and algorithms shared across yt-dlv: the info-dict contract, the
 //! `-f` format-selection language, output templating, and a shared HTTP client.
 
+pub mod cookies;
 pub mod format_selection;
 pub mod info;
 pub mod net;

@@ -59,6 +59,11 @@ pub struct Cli {
     #[arg(long = "user-agent")]
     pub user_agent: Option<String>,
 
+    /// Netscape-format cookies.txt file. Authenticated requests reduce bot
+    /// flagging and can unlock formats that need the JS player.
+    #[arg(long = "cookies", value_name = "FILE")]
+    pub cookies: Option<std::path::PathBuf>,
+
     /// InnerTube player client(s) to use, in priority order
     /// (e.g. `web`, `ios`, `android_vr`, `tv`). Repeatable.
     #[arg(long = "player-client")]

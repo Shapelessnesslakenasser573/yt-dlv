@@ -188,6 +188,11 @@ fn build_http_client(cli: &cli::Cli) -> Result<HttpClient> {
     if let Some(ua) = &cli.user_agent {
         b = b.user_agent(ua.clone());
     }
+    if let Some(path) = &cli.cookies {
+        let jar = ytdlv_core::cookies::load_cookie_file(path)?;
+        b = b.cookie_jar(jar);
+        tracing::info!("loaded cookies from {}", path.display());
+    }
     b.build()
 }
 
@@ -215,8 +220,10 @@ fn init_tracing(verbose: u8, quiet: bool) {
     let level = if quiet {
         "error"
     } else {
+        // The binary's crate name is `yt_dlv` (from `[[bin]] name`), not
+        // `ytdlv_cli`, so target that for the CLI's own logs.
         match verbose {
-            0 => "ytdlv_cli=info,ytdlv_extractor=info,ytdlv_download=info,warn",
+            0 => "yt_dlv=info,ytdlv_extractor=info,ytdlv_download=info,warn",
             1 => "debug,info",
             _ => "trace",
         }
