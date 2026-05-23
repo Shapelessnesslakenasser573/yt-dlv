@@ -97,6 +97,10 @@ pub struct Cli {
     #[arg(short = 'P', long = "paths", value_name = "DIR")]
     pub paths: Option<String>,
 
+    /// Restrict filenames to ASCII and avoid spaces/special characters.
+    #[arg(long = "restrict-filenames")]
+    pub restrict_filenames: bool,
+
     /// Record downloaded video ids in FILE and skip ids already present.
     #[arg(long = "download-archive", value_name = "FILE")]
     pub download_archive: Option<std::path::PathBuf>,
