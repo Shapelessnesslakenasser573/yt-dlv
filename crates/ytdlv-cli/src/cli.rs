@@ -53,6 +53,10 @@ pub struct Cli {
     #[arg(long = "audio-format", default_value = "best")]
     pub audio_format: String,
 
+    /// Embed metadata (title/artist/date/description) into the file (ffmpeg).
+    #[arg(long = "embed-metadata", alias = "add-metadata")]
+    pub embed_metadata: bool,
+
     /// Write the info JSON next to the downloaded file.
     #[arg(long = "write-info-json")]
     pub write_info_json: bool,

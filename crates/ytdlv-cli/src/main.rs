@@ -230,21 +230,43 @@ async fn handle_video(info: InfoDict, cli: &cli::Cli, http: &HttpClient) -> Resu
 
     let media = download_selection(&selection, &info, cli, http).await?;
 
-    if cli.extract_audio {
+    let final_file = if cli.extract_audio {
         let audio = ffmpeg::extract_audio(&media, &cli.audio_format)
             .context("extracting audio with ffmpeg")?;
         if audio != media {
             let _ = std::fs::remove_file(&media);
         }
-        println!("Saved: {}", audio.display());
+        audio
     } else {
-        println!("Saved: {}", media.display());
+        media
+    };
+
+    if cli.embed_metadata {
+        let meta = metadata_tags(&info);
+        ffmpeg::embed_metadata(&final_file, &meta).context("embedding metadata with ffmpeg")?;
     }
+
+    println!("Saved: {}", final_file.display());
 
     if let Some(archive) = &cli.download_archive {
         archive_record(archive, &archive_id(&info))?;
     }
     Ok(())
+}
+
+/// Build ffmpeg metadata tags from the info dict.
+fn metadata_tags(info: &InfoDict) -> Vec<(String, String)> {
+    let mut tags = vec![("title".to_string(), info.title.clone())];
+    if let Some(v) = info.channel.as_ref().or(info.uploader.as_ref()) {
+        tags.push(("artist".to_string(), v.clone()));
+    }
+    if let Some(v) = &info.upload_date {
+        tags.push(("date".to_string(), v.clone()));
+    }
+    if let Some(v) = &info.description {
+        tags.push(("comment".to_string(), v.clone()));
+    }
+    tags
 }
 
 /// yt-dlp-style archive id: `<extractor> <video_id>`.
