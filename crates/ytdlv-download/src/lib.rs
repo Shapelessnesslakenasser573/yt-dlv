@@ -1,14 +1,14 @@
-//! HTTP download engine: ranged, resumable, single-stream download of one
-//! [`Format`] to disk with a progress bar.
+//! Download engine: dispatches on a format's protocol. Plain HTTP uses a
+//! ranged, resumable single stream; HLS concatenates media segments.
 //!
-//! YouTube's googlevideo URLs are range-capable, so we download into a
-//! `<dest>.part` file and, if interrupted, resume from its current length via a
-//! `Range` request. HLS/DASH fragment downloaders are future work; for now the
-//! YouTube progressive and adaptive formats we target are plain HTTP.
+//! Range-capable HTTP downloads into a `<dest>.part` file and, if interrupted,
+//! resume from its current length via a `Range` request.
+
+mod hls;
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::header::HeaderMap;
@@ -23,25 +23,31 @@ pub struct DownloadOptions {
     pub quiet: bool,
 }
 
-/// Download a single format to `dest`. Returns the path written.
+/// Download a single format to `dest`, dispatching on its protocol.
 pub async fn download_format(
     http: &HttpClient,
     format: &Format,
     dest: &Path,
     opts: &DownloadOptions,
 ) -> Result<PathBuf> {
-    if !matches!(format.protocol, Protocol::Https) {
-        return Err(anyhow!(
-            "protocol {:?} not yet supported by the native downloader",
-            format.protocol
-        ));
-    }
-
     if dest.exists() && !opts.overwrite {
         tracing::info!("{} already exists, skipping", dest.display());
         return Ok(dest.to_path_buf());
     }
+    match format.protocol {
+        Protocol::Https => download_http(http, format, dest, opts).await,
+        Protocol::M3u8Native => hls::download_hls(http, &format.url, dest, opts.quiet).await,
+        other => anyhow::bail!("protocol {other:?} not yet supported by the downloader"),
+    }
+}
 
+/// Ranged, resumable plain-HTTP download.
+async fn download_http(
+    http: &HttpClient,
+    format: &Format,
+    dest: &Path,
+    opts: &DownloadOptions,
+) -> Result<PathBuf> {
     let mut headers = HeaderMap::new();
     for (k, v) in &format.http_headers {
         if let (Ok(name), Ok(val)) = (
@@ -109,7 +115,7 @@ pub async fn download_format(
     Ok(dest.to_path_buf())
 }
 
-fn part_path(dest: &Path) -> PathBuf {
+pub(crate) fn part_path(dest: &Path) -> PathBuf {
     let mut s = dest.as_os_str().to_os_string();
     s.push(".part");
     PathBuf::from(s)
