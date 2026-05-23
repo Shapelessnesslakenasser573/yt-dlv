@@ -36,6 +36,30 @@ pub fn extract_audio(input: &Path, audio_format: &str) -> Result<PathBuf> {
     Ok(final_out)
 }
 
+/// Embed metadata tags into `path` in-place (stream copy, no re-encode).
+pub fn embed_metadata(path: &Path, tags: &[(String, String)]) -> Result<()> {
+    ensure_available()?;
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("mkv");
+    let tmp = path.with_extension(format!("meta.{ext}"));
+
+    let mut cmd = Command::new("ffmpeg");
+    cmd.args(["-y", "-loglevel", "warning", "-i"])
+        .arg(path)
+        .args(["-map", "0", "-c", "copy"]);
+    for (k, v) in tags {
+        if !v.is_empty() {
+            cmd.arg("-metadata").arg(format!("{k}={v}"));
+        }
+    }
+    let status = cmd.arg(&tmp).status()?;
+    if !status.success() {
+        let _ = std::fs::remove_file(&tmp);
+        bail!("ffmpeg failed to embed metadata");
+    }
+    std::fs::rename(&tmp, path)?;
+    Ok(())
+}
+
 fn run_extract(input: &Path, output: &Path, codec_args: &[&str]) -> Result<bool> {
     Ok(Command::new("ffmpeg")
         .args(["-y", "-loglevel", "warning", "-i"])
