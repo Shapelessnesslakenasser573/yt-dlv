@@ -7,6 +7,10 @@ version = "0.1.0"
 edition = "2021"
 license = "Unlicense"
 repository = "https://github.com/nhodges/yt-dlv"
+homepage = "https://github.com/nhodges/yt-dlv"
+description = "A YouTube downloader rewritten in Rust — a yt-dlp reimplementation."
+keywords = ["youtube", "yt-dlp", "downloader", "video", "quickjs"]
+categories = ["command-line-utilities", "multimedia::video"]
 
 [workspace.dependencies]
 anyhow = "1"
