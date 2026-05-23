@@ -423,7 +423,7 @@ async fn download_selection(
 }
 
 fn render_output(cli: &cli::Cli, info: &InfoDict, ext: &str) -> PathBuf {
-    let rendered = output::render(&cli.output, info, ext);
+    let rendered = output::render_with(&cli.output, info, ext, cli.restrict_filenames);
     let path = match &cli.paths {
         Some(dir) => PathBuf::from(dir).join(rendered),
         None => PathBuf::from(rendered),

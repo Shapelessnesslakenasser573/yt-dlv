@@ -47,7 +47,13 @@ static FIELD_RE: Lazy<Regex> = Lazy::new(|| {
 /// Render `template` against `info` (using `ext` for `%(ext)s`) into a safe
 /// filename.
 pub fn render(template: &str, info: &InfoDict, ext: &str) -> String {
-    sanitize_path(&substitute(template, info, ext))
+    render_with(template, info, ext, false)
+}
+
+/// Like [`render`], but `restrict` produces ASCII-only filenames (spaces → `_`,
+/// other non-`[A-Za-z0-9._-]` dropped), matching yt-dlp's `--restrict-filenames`.
+pub fn render_with(template: &str, info: &InfoDict, ext: &str, restrict: bool) -> String {
+    sanitize_path(&substitute(template, info, ext), restrict)
 }
 
 /// Like [`render`] but without filename sanitisation — for `--print`, where the
@@ -149,22 +155,40 @@ fn build_fields(info: &InfoDict, ext: &str) -> HashMap<String, String> {
 
 /// Sanitise into a filename safe across platforms while preserving any path
 /// separators the template intentionally produced.
-fn sanitize_path(s: &str) -> String {
+fn sanitize_path(s: &str, restrict: bool) -> String {
     s.split('/')
-        .map(sanitize_component)
+        .map(|c| sanitize_component(c, restrict))
         .collect::<Vec<_>>()
         .join("/")
 }
 
-fn sanitize_component(s: &str) -> String {
-    let mut out: String = s
-        .chars()
-        .map(|c| match c {
-            '<' | '>' | ':' | '"' | '\\' | '|' | '?' | '*' => '_',
-            c if (c as u32) < 0x20 => '_',
-            c => c,
-        })
-        .collect();
+fn sanitize_component(s: &str, restrict: bool) -> String {
+    let mut out: String = if restrict {
+        s.chars()
+            .map(|c| match c {
+                'a'..='z' | 'A'..='Z' | '0'..='9' | '.' | '-' | '_' => c,
+                ' ' => '_',
+                _ => '\0', // marker for drop
+            })
+            .filter(|c| *c != '\0')
+            .collect()
+    } else {
+        s.chars()
+            .map(|c| match c {
+                '<' | '>' | ':' | '"' | '\\' | '|' | '?' | '*' => '_',
+                c if (c as u32) < 0x20 => '_',
+                c => c,
+            })
+            .collect()
+    };
+    if restrict {
+        // Collapse runs of '_' (from dropped/space chars) into one.
+        out = out
+            .split('_')
+            .filter(|p| !p.is_empty())
+            .collect::<Vec<_>>()
+            .join("_");
+    }
     // Avoid trailing dots/spaces (Windows-hostile) and empty names.
     while out.ends_with('.') || out.ends_with(' ') {
         out.pop();
@@ -239,5 +263,15 @@ mod tests {
         let mut info = sample();
         info.view_count = Some(7);
         assert_eq!(render("%(view_count)05d", &info, "mp4"), "00007");
+    }
+
+    #[test]
+    fn restrict_filenames_ascii_only() {
+        let mut info = sample();
+        info.title = "Café — Mötley: a/b".into();
+        // Non-ASCII dropped, spaces -> _, illegal punctuation dropped, '/' kept
+        // as a path separator.
+        let out = render_with("%(title)s.%(ext)s", &info, "mp4", true);
+        assert_eq!(out, "Caf_Mtley_a/b.mp4");
     }
 }
