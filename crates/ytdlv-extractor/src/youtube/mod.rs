@@ -7,6 +7,7 @@
 
 pub mod clients;
 pub mod player;
+pub mod playlist;
 pub mod signature;
 
 use async_trait::async_trait;
@@ -38,10 +39,23 @@ impl Extractor for YoutubeExtractor {
     }
 
     fn matches(&self, url: &str) -> bool {
-        is_youtube_host(url) && parse_video_id(url).is_some()
+        is_youtube_host(url) && (parse_video_id(url).is_some() || parse_playlist_id(url).is_some())
     }
 
     async fn extract(&self, url: &str, ctx: &ExtractContext<'_>) -> Result<Extraction> {
+        // Pure playlist URL (a `list=` with no video) -> playlist extraction.
+        // `watch?v=X&list=Y` stays a single-video download (conservative; use
+        // the playlist URL to fetch the whole list).
+        if parse_video_id(url).is_none() {
+            if let Some(playlist_id) = parse_playlist_id(url) {
+                tracing::info!("youtube: extracting playlist {playlist_id}");
+                let pl = playlist::extract_playlist(ctx.http, &playlist_id)
+                    .await
+                    .map_err(|e| Error::Extraction(e.to_string()))?;
+                return Ok(Extraction::Playlist(pl));
+            }
+        }
+
         let video_id = parse_video_id(url).ok_or_else(|| Error::UnsupportedUrl(url.to_string()))?;
         tracing::info!("youtube: extracting video {video_id}");
 
@@ -250,6 +264,16 @@ pub fn parse_video_id(url: &str) -> Option<String> {
         .map(|m| m.as_str().to_string())
 }
 
+/// Extract a playlist id from a `list=` query parameter.
+pub fn parse_playlist_id(url: &str) -> Option<String> {
+    let parsed = url::Url::parse(url).ok()?;
+    parsed
+        .query_pairs()
+        .find(|(k, _)| k == "list")
+        .map(|(_, v)| v.into_owned())
+        .filter(|id| !id.is_empty())
+}
+
 fn parse_thumbnails(resp: &Value, video_id: &str) -> Vec<Thumbnail> {
     let mut out = Vec::new();
     if let Some(arr) = resp
@@ -320,8 +344,22 @@ mod tests {
         let e = YoutubeExtractor::new();
         assert!(e.matches("https://www.youtube.com/watch?v=dQw4w9WgXcQ"));
         assert!(e.matches("https://youtu.be/dQw4w9WgXcQ"));
+        assert!(e.matches("https://www.youtube.com/playlist?list=PLabc123"));
         assert!(!e.matches("https://vimeo.com/12345678"));
         assert!(!e.matches("https://example.com/watch?v=dQw4w9WgXcQ"));
+    }
+
+    #[test]
+    fn playlist_id_only_from_list_param() {
+        assert_eq!(
+            parse_playlist_id("https://www.youtube.com/playlist?list=PLabc").as_deref(),
+            Some("PLabc")
+        );
+        assert_eq!(
+            parse_playlist_id("https://www.youtube.com/watch?v=x&list=PLxyz").as_deref(),
+            Some("PLxyz")
+        );
+        assert_eq!(parse_playlist_id("https://www.youtube.com/watch?v=x"), None);
     }
 
     #[test]
