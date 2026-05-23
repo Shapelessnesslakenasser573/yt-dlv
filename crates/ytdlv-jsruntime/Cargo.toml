@@ -8,4 +8,6 @@ license.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
-rquickjs = { version = "0.9", features = ["bindgen"] }
+# No `bindgen` feature: use rquickjs's pre-generated bindings so release builds
+# don't require libclang on every OS (macOS/Windows runners).
+rquickjs = { version = "0.9" }
