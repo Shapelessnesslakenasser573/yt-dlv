@@ -59,29 +59,29 @@ async fn process_url(
     http: &HttpClient,
     js: &dyn JsRuntime,
 ) -> Result<()> {
-    let extractor = ytdlv_extractor::find_extractor(url)
-        .ok_or_else(|| anyhow!("unsupported URL: no extractor matched"))?;
-    tracing::info!("using extractor: {}", extractor.key());
-
-    let ctx = ExtractContext {
-        http,
-        js,
-        options: ExtractOptions {
-            player_clients: cli.player_client.clone(),
-        },
-    };
-
-    let extraction = extractor
-        .extract(url, &ctx)
-        .await
-        .map_err(|e| anyhow!("{e}"))?;
-    match extraction {
+    match extract_url(url, cli, http, js).await? {
         Extraction::Video(info) => handle_video(*info, cli, http).await,
         Extraction::Playlist(pl) => {
-            tracing::info!("playlist '{}' with {} entries", pl.id, pl.entries.len());
+            let name = pl.title.clone().unwrap_or_else(|| pl.id.clone());
+            tracing::info!("playlist '{name}' with {} entries", pl.entries.len());
             let mut err = None;
             for entry in pl.entries {
-                if let Err(e) = handle_video(entry, cli, http).await {
+                // Flat: list the stub as-is. Otherwise re-extract the entry to
+                // a full video (so formats/subtitles are available).
+                let result = if cli.flat_playlist {
+                    handle_video(entry, cli, http).await
+                } else {
+                    let entry_url = entry
+                        .webpage_url
+                        .clone()
+                        .unwrap_or_else(|| format!("https://www.youtube.com/watch?v={}", entry.id));
+                    match extract_url(&entry_url, cli, http, js).await {
+                        Ok(Extraction::Video(info)) => handle_video(*info, cli, http).await,
+                        Ok(Extraction::Playlist(_)) => Ok(()), // no nested expansion
+                        Err(e) => Err(e),
+                    }
+                };
+                if let Err(e) = result {
                     eprintln!("  entry error: {e:#}");
                     err = Some(e);
                 }
@@ -92,6 +92,29 @@ async fn process_url(
             }
         }
     }
+}
+
+/// Find the matching extractor and run it.
+async fn extract_url(
+    url: &str,
+    cli: &cli::Cli,
+    http: &HttpClient,
+    js: &dyn JsRuntime,
+) -> Result<Extraction> {
+    let extractor = ytdlv_extractor::find_extractor(url)
+        .ok_or_else(|| anyhow!("unsupported URL: no extractor matched"))?;
+    tracing::debug!("using extractor: {}", extractor.key());
+    let ctx = ExtractContext {
+        http,
+        js,
+        options: ExtractOptions {
+            player_clients: cli.player_client.clone(),
+        },
+    };
+    extractor
+        .extract(url, &ctx)
+        .await
+        .map_err(|e| anyhow!("{e}"))
 }
 
 async fn handle_video(info: InfoDict, cli: &cli::Cli, http: &HttpClient) -> Result<()> {

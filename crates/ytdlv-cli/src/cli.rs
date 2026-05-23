@@ -37,6 +37,10 @@ pub struct Cli {
     #[arg(long = "skip-download")]
     pub skip_download: bool,
 
+    /// For playlists, list entries without re-extracting each video.
+    #[arg(long = "flat-playlist")]
+    pub flat_playlist: bool,
+
     /// Write the info JSON next to the downloaded file.
     #[arg(long = "write-info-json")]
     pub write_info_json: bool,
