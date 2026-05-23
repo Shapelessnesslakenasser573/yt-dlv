@@ -91,11 +91,17 @@ fn pick_variant(master: &str, base: &str) -> Result<String> {
     let lines: Vec<&str> = master.lines().collect();
     for (i, line) in lines.iter().enumerate() {
         if line.starts_with("#EXT-X-STREAM-INF") {
+            // BANDWIDTH= is an attribute on the EXT-X-STREAM-INF line; find it
+            // anywhere and read the digits that follow.
             let bw = line
-                .split(',')
-                .find_map(|kv| kv.trim().strip_prefix("BANDWIDTH="))
-                .and_then(|v| v.split(',').next())
-                .and_then(|v| v.trim().parse::<u64>().ok())
+                .split("BANDWIDTH=")
+                .nth(1)
+                .map(|s| {
+                    s.chars()
+                        .take_while(|c| c.is_ascii_digit())
+                        .collect::<String>()
+                })
+                .and_then(|d| d.parse::<u64>().ok())
                 .unwrap_or(0);
             // The URI is the next non-comment line.
             if let Some(uri) = lines.get(i + 1..).and_then(|rest| {
