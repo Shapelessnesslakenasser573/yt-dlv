@@ -28,6 +28,15 @@ pub struct Cli {
     #[arg(short = 'j', long = "dump-json")]
     pub dump_json: bool,
 
+    /// Print specific field(s) and exit, e.g. `--print title --print id`.
+    /// Use `url` to print the selected format URL(s). Repeatable.
+    #[arg(long = "print", value_name = "FIELD")]
+    pub print: Vec<String>,
+
+    /// Don't download the video (sidecars like --write-subs still run).
+    #[arg(long = "skip-download")]
+    pub skip_download: bool,
+
     /// Write the info JSON next to the downloaded file.
     #[arg(long = "write-info-json")]
     pub write_info_json: bool,

@@ -107,11 +107,24 @@ async fn handle_video(info: InfoDict, cli: &cli::Cli, http: &HttpClient) -> Resu
         subs::list(&info);
         return Ok(());
     }
+    if !cli.print.is_empty() {
+        print_fields(&info, cli)?;
+        return Ok(());
+    }
 
-    // Subtitles are written alongside the media (or on their own with
-    // --skip-download-style usage); do it before the media download.
+    // Metadata sidecars don't need a downloadable format, so do them first.
+    if cli.write_info_json {
+        let path = render_output(cli, &info, "info.json");
+        std::fs::write(&path, serde_json::to_vec_pretty(&info)?)
+            .with_context(|| format!("writing {}", path.display()))?;
+        tracing::info!("wrote {}", path.display());
+    }
     if (cli.write_subs || cli.write_auto_subs) && !cli.simulate {
         subs::write(&info, cli, http).await?;
+    }
+
+    if cli.skip_download {
+        return Ok(());
     }
 
     let spec = cli.format.as_deref().unwrap_or(ytdlv_core::DEFAULT_FORMAT);
@@ -119,13 +132,6 @@ async fn handle_video(info: InfoDict, cli: &cli::Cli, http: &HttpClient) -> Resu
     let selection = selector
         .select(&info.formats)
         .ok_or_else(|| anyhow!("requested format '{spec}' not available"))?;
-
-    if cli.write_info_json {
-        let path = render_output(cli, &info, "info.json");
-        std::fs::write(&path, serde_json::to_vec_pretty(&info)?)
-            .with_context(|| format!("writing {}", path.display()))?;
-        tracing::info!("wrote {}", path.display());
-    }
 
     if cli.simulate {
         for f in &selection.formats {
@@ -142,6 +148,55 @@ async fn handle_video(info: InfoDict, cli: &cli::Cli, http: &HttpClient) -> Resu
     }
 
     download_selection(&selection, &info, cli, http).await
+}
+
+/// Handle `--print FIELD`: print each requested field, one per line.
+fn print_fields(info: &InfoDict, cli: &cli::Cli) -> Result<()> {
+    // `url`/`urls` need the selected format(s).
+    let needs_selection = cli.print.iter().any(|f| f == "url" || f == "urls");
+    let urls: Vec<String> = if needs_selection {
+        let spec = cli.format.as_deref().unwrap_or(ytdlv_core::DEFAULT_FORMAT);
+        FormatSelector::parse(spec)
+            .ok()
+            .and_then(|s| s.select(&info.formats))
+            .map(|sel| sel.formats.iter().map(|f| f.url.clone()).collect())
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
+    for field in &cli.print {
+        match field.as_str() {
+            "url" | "urls" => println!("{}", urls.join("\n")),
+            other => println!(
+                "{}",
+                field_value(info, other).unwrap_or_else(|| "NA".into())
+            ),
+        }
+    }
+    Ok(())
+}
+
+/// Map a yt-dlp-style field name to its value in the info dict.
+fn field_value(info: &InfoDict, name: &str) -> Option<String> {
+    match name {
+        "id" => Some(info.id.clone()),
+        "title" => Some(info.title.clone()),
+        "description" => info.description.clone(),
+        "duration" => info.duration.map(|d| (d as i64).to_string()),
+        "uploader" => info.uploader.clone(),
+        "uploader_id" => info.uploader_id.clone(),
+        "channel" => info.channel.clone(),
+        "channel_id" => info.channel_id.clone(),
+        "channel_url" => info.channel_url.clone(),
+        "view_count" => info.view_count.map(|v| v.to_string()),
+        "like_count" => info.like_count.map(|v| v.to_string()),
+        "upload_date" => info.upload_date.clone(),
+        "webpage_url" => info.webpage_url.clone(),
+        "extractor" => info.extractor.clone(),
+        "thumbnail" => info.thumbnails.last().map(|t| t.url.clone()),
+        _ => None,
+    }
 }
 
 async fn download_selection(
