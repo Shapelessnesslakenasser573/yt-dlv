@@ -89,6 +89,14 @@ pub struct Cli {
     )]
     pub output: String,
 
+    /// Base output directory (prepended to the output template).
+    #[arg(short = 'P', long = "paths", value_name = "DIR")]
+    pub paths: Option<String>,
+
+    /// Record downloaded video ids in FILE and skip ids already present.
+    #[arg(long = "download-archive", value_name = "FILE")]
+    pub download_archive: Option<std::path::PathBuf>,
+
     /// Container for merged video+audio output.
     #[arg(long = "merge-output-format", default_value = "mp4")]
     pub merge_output_format: String,

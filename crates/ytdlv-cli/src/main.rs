@@ -156,6 +156,15 @@ async fn handle_video(info: InfoDict, cli: &cli::Cli, http: &HttpClient) -> Resu
         return Ok(());
     }
 
+    // Skip if already recorded in the download archive.
+    if let Some(archive) = &cli.download_archive {
+        let aid = archive_id(&info);
+        if archive_contains(archive, &aid)? {
+            println!("[download] {aid}: already recorded in archive, skipping");
+            return Ok(());
+        }
+    }
+
     // With -x and no explicit -f, prefer audio (yt-dlp behaviour).
     let default_spec = if cli.extract_audio && cli.format.is_none() {
         "ba/bestaudio/best"
@@ -194,6 +203,35 @@ async fn handle_video(info: InfoDict, cli: &cli::Cli, http: &HttpClient) -> Resu
     } else {
         println!("Saved: {}", media.display());
     }
+
+    if let Some(archive) = &cli.download_archive {
+        archive_record(archive, &archive_id(&info))?;
+    }
+    Ok(())
+}
+
+/// yt-dlp-style archive id: `<extractor> <video_id>`.
+fn archive_id(info: &InfoDict) -> String {
+    let extractor = info.extractor.as_deref().unwrap_or("unknown");
+    format!("{extractor} {}", info.id)
+}
+
+fn archive_contains(path: &std::path::Path, id: &str) -> Result<bool> {
+    match std::fs::read_to_string(path) {
+        Ok(s) => Ok(s.lines().any(|l| l.trim() == id)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(anyhow!("reading archive {}: {e}", path.display())),
+    }
+}
+
+fn archive_record(path: &std::path::Path, id: &str) -> Result<()> {
+    use std::io::Write;
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .with_context(|| format!("opening archive {}", path.display()))?;
+    writeln!(f, "{id}").with_context(|| format!("writing archive {}", path.display()))?;
     Ok(())
 }
 
@@ -346,7 +384,19 @@ async fn download_selection(
 }
 
 fn render_output(cli: &cli::Cli, info: &InfoDict, ext: &str) -> PathBuf {
-    PathBuf::from(output::render(&cli.output, info, ext))
+    let rendered = output::render(&cli.output, info, ext);
+    let path = match &cli.paths {
+        Some(dir) => PathBuf::from(dir).join(rendered),
+        None => PathBuf::from(rendered),
+    };
+    // Best-effort: ensure the parent directory exists (templates may include
+    // subdirs, e.g. %(channel)s/...).
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+    }
+    path
 }
 
 fn build_http_client(cli: &cli::Cli) -> Result<HttpClient> {
