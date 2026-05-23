@@ -53,6 +53,14 @@ pub struct Cli {
     #[arg(long = "write-info-json")]
     pub write_info_json: bool,
 
+    /// Write the video thumbnail to a file.
+    #[arg(long = "write-thumbnail")]
+    pub write_thumbnail: bool,
+
+    /// Write the video description to a .description file.
+    #[arg(long = "write-description")]
+    pub write_description: bool,
+
     /// List available subtitle languages and exit.
     #[arg(long = "list-subs")]
     pub list_subs: bool,

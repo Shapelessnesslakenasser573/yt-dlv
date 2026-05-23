@@ -142,6 +142,12 @@ async fn handle_video(info: InfoDict, cli: &cli::Cli, http: &HttpClient) -> Resu
             .with_context(|| format!("writing {}", path.display()))?;
         tracing::info!("wrote {}", path.display());
     }
+    if cli.write_description {
+        write_description(&info, cli)?;
+    }
+    if cli.write_thumbnail {
+        write_thumbnail(&info, cli, http).await?;
+    }
     if (cli.write_subs || cli.write_auto_subs) && !cli.simulate {
         subs::write(&info, cli, http).await?;
     }
@@ -241,6 +247,47 @@ fn field_value(info: &InfoDict, name: &str) -> Option<String> {
 }
 
 /// Download the selection and return the final media path on disk.
+fn write_description(info: &InfoDict, cli: &cli::Cli) -> Result<()> {
+    let Some(desc) = &info.description else {
+        tracing::warn!("no description available");
+        return Ok(());
+    };
+    let path = render_output(cli, info, "description");
+    std::fs::write(&path, desc).with_context(|| format!("writing {}", path.display()))?;
+    println!("Saved description: {}", path.display());
+    Ok(())
+}
+
+async fn write_thumbnail(info: &InfoDict, cli: &cli::Cli, http: &HttpClient) -> Result<()> {
+    // Thumbnails are stored ascending; the last is the highest quality.
+    let Some(thumb) = info.thumbnails.last() else {
+        tracing::warn!("no thumbnail available");
+        return Ok(());
+    };
+    let ext = thumb
+        .url
+        .split(['?', '#'])
+        .next()
+        .and_then(|p| p.rsplit('.').next())
+        .filter(|e| matches!(*e, "jpg" | "jpeg" | "webp" | "png"))
+        .unwrap_or("jpg");
+    let path = render_output(cli, info, ext);
+    let bytes = http
+        .raw()
+        .get(&thumb.url)
+        .send()
+        .await
+        .context("requesting thumbnail")?
+        .error_for_status()
+        .context("thumbnail download failed")?
+        .bytes()
+        .await
+        .context("reading thumbnail")?;
+    std::fs::write(&path, &bytes).with_context(|| format!("writing {}", path.display()))?;
+    println!("Saved thumbnail: {}", path.display());
+    Ok(())
+}
+
 async fn download_selection(
     selection: &Selection,
     info: &InfoDict,
