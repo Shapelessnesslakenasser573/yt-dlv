@@ -32,6 +32,26 @@ pub struct Cli {
     #[arg(long = "write-info-json")]
     pub write_info_json: bool,
 
+    /// List available subtitle languages and exit.
+    #[arg(long = "list-subs")]
+    pub list_subs: bool,
+
+    /// Write subtitle files for the selected languages.
+    #[arg(long = "write-subs")]
+    pub write_subs: bool,
+
+    /// Write automatic (ASR) captions for the selected languages.
+    #[arg(long = "write-auto-subs")]
+    pub write_auto_subs: bool,
+
+    /// Comma-separated subtitle languages (e.g. `en,de`), or `all`.
+    #[arg(long = "sub-langs", default_value = "en")]
+    pub sub_langs: String,
+
+    /// Subtitle format to download (vtt, srv3, ttml, json3).
+    #[arg(long = "sub-format", default_value = "vtt")]
+    pub sub_format: String,
+
     /// Output filename template.
     #[arg(
         short = 'o',

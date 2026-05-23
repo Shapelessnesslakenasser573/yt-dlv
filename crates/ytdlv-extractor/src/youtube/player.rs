@@ -2,11 +2,13 @@
 //! parse `streamingData` into [`Format`]s, and resolve each format's final URL
 //! (signature decryption + `n`-parameter descrambling).
 
+use std::collections::BTreeMap;
+
 use anyhow::{anyhow, bail, Result};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde_json::{json, Value};
 use url::Url;
-use ytdlv_core::{Format, HttpClient, Protocol};
+use ytdlv_core::{Format, HttpClient, Protocol, Subtitle};
 use ytdlv_jsruntime::JsRuntime;
 
 use super::clients::InnerTubeClient;
@@ -158,6 +160,62 @@ pub fn parse_video_details(resp: &Value) -> VideoDetails {
             .map(str::to_string),
         is_live: d.get("isLiveContent").and_then(Value::as_bool),
     }
+}
+
+/// Subtitle download formats we expose, in preference order.
+const SUB_FORMATS: &[&str] = &["vtt", "srv3", "ttml", "json3"];
+
+/// Parse caption tracks into `(subtitles, automatic_captions)`, keyed by
+/// language code, mirroring yt-dlp. Each language gets one entry per
+/// downloadable format (vtt/srv3/...).
+pub fn parse_subtitles(
+    resp: &Value,
+) -> (
+    BTreeMap<String, Vec<Subtitle>>,
+    BTreeMap<String, Vec<Subtitle>>,
+) {
+    let mut subtitles: BTreeMap<String, Vec<Subtitle>> = BTreeMap::new();
+    let mut automatic: BTreeMap<String, Vec<Subtitle>> = BTreeMap::new();
+
+    let tracks = resp
+        .pointer("/captions/playerCaptionsTracklistRenderer/captionTracks")
+        .and_then(Value::as_array);
+    let Some(tracks) = tracks else {
+        return (subtitles, automatic);
+    };
+
+    for t in tracks {
+        let Some(base) = t.get("baseUrl").and_then(Value::as_str) else {
+            continue;
+        };
+        let lang = t
+            .get("languageCode")
+            .and_then(Value::as_str)
+            .unwrap_or("und")
+            .to_string();
+        let is_asr = t.get("kind").and_then(Value::as_str) == Some("asr");
+        let name = t
+            .pointer("/name/runs/0/text")
+            .or_else(|| t.pointer("/name/simpleText"))
+            .and_then(Value::as_str)
+            .map(str::to_string);
+
+        let entries: Vec<Subtitle> = SUB_FORMATS
+            .iter()
+            .map(|fmt| Subtitle {
+                url: set_query_param(base, "fmt", fmt),
+                ext: Some((*fmt).to_string()),
+                name: name.clone(),
+            })
+            .collect();
+
+        if is_asr {
+            automatic.insert(lang, entries);
+        } else {
+            subtitles.insert(lang, entries);
+        }
+    }
+    (subtitles, automatic)
 }
 
 /// Parse all `formats` + `adaptiveFormats`, resolving URLs via the solver.
@@ -400,5 +458,26 @@ mod tests {
         assert!(out.contains("itag=18"));
         let appended = set_query_param(u, "sig", "ABC");
         assert_eq!(get_query_param(&appended, "sig").as_deref(), Some("ABC"));
+    }
+
+    #[test]
+    fn parses_caption_tracks_into_subs_and_auto() {
+        let resp = json!({
+            "captions": {"playerCaptionsTracklistRenderer": {"captionTracks": [
+                {"baseUrl": "https://yt/api/timedtext?v=x&lang=en",
+                 "languageCode": "en", "name": {"simpleText": "English"}},
+                {"baseUrl": "https://yt/api/timedtext?v=x&lang=en",
+                 "languageCode": "en", "kind": "asr"}
+            ]}}
+        });
+        let (subs, auto) = parse_subtitles(&resp);
+        assert_eq!(subs.len(), 1);
+        assert_eq!(auto.len(), 1);
+
+        let en = &subs["en"];
+        assert_eq!(en.len(), SUB_FORMATS.len());
+        let vtt = en.iter().find(|s| s.ext.as_deref() == Some("vtt")).unwrap();
+        assert!(vtt.url.contains("fmt=vtt"), "url: {}", vtt.url);
+        assert_eq!(vtt.name.as_deref(), Some("English"));
     }
 }

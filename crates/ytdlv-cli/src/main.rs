@@ -5,6 +5,7 @@
 mod cli;
 mod ffmpeg;
 mod format_table;
+mod subs;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -101,6 +102,16 @@ async fn handle_video(info: InfoDict, cli: &cli::Cli, http: &HttpClient) -> Resu
     if cli.list_formats {
         format_table::print(&info);
         return Ok(());
+    }
+    if cli.list_subs {
+        subs::list(&info);
+        return Ok(());
+    }
+
+    // Subtitles are written alongside the media (or on their own with
+    // --skip-download-style usage); do it before the media download.
+    if (cli.write_subs || cli.write_auto_subs) && !cli.simulate {
+        subs::write(&info, cli, http).await?;
     }
 
     let spec = cli.format.as_deref().unwrap_or(ytdlv_core::DEFAULT_FORMAT);
