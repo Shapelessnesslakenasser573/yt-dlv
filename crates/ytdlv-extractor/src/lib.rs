@@ -8,8 +8,10 @@ use async_trait::async_trait;
 use ytdlv_core::{Extraction, HttpClient};
 use ytdlv_jsruntime::JsRuntime;
 
+pub mod generic;
 pub mod youtube;
 
+pub use generic::GenericExtractor;
 pub use youtube::YoutubeExtractor;
 
 /// Everything an extractor needs from the host application.
@@ -37,9 +39,13 @@ pub trait Extractor: Send + Sync {
     async fn extract(&self, url: &str, ctx: &ExtractContext<'_>) -> ytdlv_core::Result<Extraction>;
 }
 
-/// All registered extractors, in match priority order.
+/// All registered extractors, in match priority order. The generic extractor is
+/// last so site-specific extractors win.
 pub fn registry() -> Vec<Box<dyn Extractor>> {
-    vec![Box::new(YoutubeExtractor::new())]
+    vec![
+        Box::new(YoutubeExtractor::new()),
+        Box::new(GenericExtractor::new()),
+    ]
 }
 
 /// Find the first extractor that claims `url`.
