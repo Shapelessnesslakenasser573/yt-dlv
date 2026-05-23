@@ -253,6 +253,8 @@ fn print_fields(info: &InfoDict, cli: &cli::Cli) -> Result<()> {
     for field in &cli.print {
         match field.as_str() {
             "url" | "urls" => println!("{}", urls.join("\n")),
+            // An output-template string (e.g. "%(title)s [%(id)s]").
+            t if t.contains("%(") => println!("{}", output::render_raw(t, info, "")),
             other => println!(
                 "{}",
                 field_value(info, other).unwrap_or_else(|| "NA".into())

@@ -34,22 +34,79 @@ mod once_cell_lite {
     }
 }
 
-static FIELD_RE: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"%\((?P<key>[a-zA-Z_][a-zA-Z0-9_]*)\)(?P<conv>[sd])").unwrap());
+// Supports `%(key)s`, `%(key)d`, an optional `|default` (`%(uploader|Unknown)s`),
+// and a format spec: zero/space pad (`%(n)05d`) and string truncation
+// (`%(title).40s`).
+static FIELD_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"%\((?P<key>[a-zA-Z_][a-zA-Z0-9_]*)(?:\|(?P<default>[^)]*))?\)(?P<spec>\d*(?:\.\d+)?)(?P<conv>[sd])",
+    )
+    .unwrap()
+});
 
-/// Render `template` against `info`, using `ext` for `%(ext)s`.
+/// Render `template` against `info` (using `ext` for `%(ext)s`) into a safe
+/// filename.
 pub fn render(template: &str, info: &InfoDict, ext: &str) -> String {
+    sanitize_path(&substitute(template, info, ext))
+}
+
+/// Like [`render`] but without filename sanitisation — for `--print`, where the
+/// raw field values are wanted.
+pub fn render_raw(template: &str, info: &InfoDict, ext: &str) -> String {
+    substitute(template, info, ext)
+}
+
+fn substitute(template: &str, info: &InfoDict, ext: &str) -> String {
     let fields = build_fields(info, ext);
-    let rendered = FIELD_RE
+    FIELD_RE
         .replace_all(template, |caps: &regex::Captures| {
             let key = &caps["key"];
-            match fields.get(key) {
+            let value = match fields.get(key) {
                 Some(v) => v.clone(),
-                None => "NA".to_string(),
-            }
+                None => match caps.name("default") {
+                    Some(d) => d.as_str().to_string(),
+                    None => "NA".to_string(),
+                },
+            };
+            let spec = caps.name("spec").map(|m| m.as_str()).unwrap_or("");
+            let conv = caps["conv"].chars().next().unwrap_or('s');
+            apply_spec(&value, spec, conv)
         })
-        .into_owned();
-    sanitize_path(&rendered)
+        .into_owned()
+}
+
+/// Apply a printf-style spec subset: width (`5`), zero-pad (`05`) for `d`, and
+/// precision/truncation (`.40`) for `s`.
+fn apply_spec(value: &str, spec: &str, conv: char) -> String {
+    let (width_str, precision) = match spec.split_once('.') {
+        Some((w, p)) => (w, p.parse::<usize>().ok()),
+        None => (spec, None),
+    };
+    let width = width_str.parse::<usize>().ok();
+    let zero_pad = width_str.starts_with('0');
+
+    if conv == 'd' {
+        if let Ok(n) = value.parse::<i64>() {
+            return match (width, zero_pad) {
+                (Some(w), true) => format!("{n:0w$}"),
+                (Some(w), false) => format!("{n:w$}"),
+                _ => n.to_string(),
+            };
+        }
+        return value.to_string();
+    }
+
+    // String: truncate to precision, then pad to width.
+    let mut s: String = match precision {
+        Some(p) => value.chars().take(p).collect(),
+        None => value.to_string(),
+    };
+    if let Some(w) = width {
+        if s.chars().count() < w {
+            s = format!("{s:<w$}");
+        }
+    }
+    s
 }
 
 fn build_fields(info: &InfoDict, ext: &str) -> HashMap<String, String> {
@@ -159,5 +216,28 @@ mod tests {
     fn numeric_conversion() {
         let out = render("%(view_count)d.%(ext)s", &sample(), "mp4");
         assert_eq!(out, "1600000000.mp4");
+    }
+
+    #[test]
+    fn default_value_when_field_missing() {
+        let out = render("%(uploader|Unknown)s.%(ext)s", &sample(), "mp4");
+        assert_eq!(out, "Unknown.mp4");
+        // Present field ignores the default.
+        let mut info = sample();
+        info.uploader = Some("Rick".into());
+        assert_eq!(render("%(uploader|Unknown)s", &info, "mp4"), "Rick");
+    }
+
+    #[test]
+    fn string_truncation() {
+        let out = render("%(title).10s.%(ext)s", &sample(), "mp4");
+        assert_eq!(out, "Rick Astle.mp4");
+    }
+
+    #[test]
+    fn integer_zero_padding() {
+        let mut info = sample();
+        info.view_count = Some(7);
+        assert_eq!(render("%(view_count)05d", &info, "mp4"), "00007");
     }
 }
