@@ -65,10 +65,15 @@ async fn process_url(
     let ctx = ExtractContext {
         http,
         js,
-        options: ExtractOptions { player_clients: cli.player_client.clone() },
+        options: ExtractOptions {
+            player_clients: cli.player_client.clone(),
+        },
     };
 
-    let extraction = extractor.extract(url, &ctx).await.map_err(|e| anyhow!("{e}"))?;
+    let extraction = extractor
+        .extract(url, &ctx)
+        .await
+        .map_err(|e| anyhow!("{e}"))?;
     match extraction {
         Extraction::Video(info) => handle_video(*info, cli, http).await,
         Extraction::Playlist(pl) => {
@@ -117,7 +122,9 @@ async fn handle_video(info: InfoDict, cli: &cli::Cli, http: &HttpClient) -> Resu
                 "would download format {} ({}, {})",
                 f.format_id,
                 f.ext,
-                f.height.map(|h| format!("{h}p")).unwrap_or_else(|| "audio".into())
+                f.height
+                    .map(|h| format!("{h}p"))
+                    .unwrap_or_else(|| "audio".into())
             );
         }
         return Ok(());
@@ -132,7 +139,10 @@ async fn download_selection(
     cli: &cli::Cli,
     http: &HttpClient,
 ) -> Result<()> {
-    let dl_opts = DownloadOptions { overwrite: cli.force_overwrites, quiet: cli.quiet };
+    let dl_opts = DownloadOptions {
+        overwrite: cli.force_overwrites,
+        quiet: cli.quiet,
+    };
 
     if !selection.needs_merge() {
         let f = &selection.formats[0];
@@ -158,13 +168,18 @@ async fn download_selection(
         parts.push((f, part_path));
     }
 
-    let video = parts.iter().find(|(f, _)| f.has_video()).map(|(_, p)| p.clone());
-    let audio = parts.iter().find(|(f, _)| f.is_audio_only()).map(|(_, p)| p.clone());
+    let video = parts
+        .iter()
+        .find(|(f, _)| f.has_video())
+        .map(|(_, p)| p.clone());
+    let audio = parts
+        .iter()
+        .find(|(f, _)| f.is_audio_only())
+        .map(|(_, p)| p.clone());
 
     match (video, audio) {
         (Some(v), Some(a)) => {
-            ffmpeg::merge(&v, &a, &final_path)
-                .context("merging video and audio with ffmpeg")?;
+            ffmpeg::merge(&v, &a, &final_path).context("merging video and audio with ffmpeg")?;
             let _ = std::fs::remove_file(&v);
             let _ = std::fs::remove_file(&a);
             println!("Saved: {}", final_path.display());
@@ -192,6 +207,9 @@ fn build_http_client(cli: &cli::Cli) -> Result<HttpClient> {
         let jar = ytdlv_core::cookies::load_cookie_file(path)?;
         b = b.cookie_jar(jar);
         tracing::info!("loaded cookies from {}", path.display());
+    } else if let Some(spec) = &cli.cookies_from_browser {
+        let jar = ytdlv_core::cookies_browser::load_from_browser(spec)?;
+        b = b.cookie_jar(jar);
     }
     b.build()
 }

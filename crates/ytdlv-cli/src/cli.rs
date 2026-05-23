@@ -33,7 +33,11 @@ pub struct Cli {
     pub write_info_json: bool,
 
     /// Output filename template.
-    #[arg(short = 'o', long = "output", default_value = "%(title)s [%(id)s].%(ext)s")]
+    #[arg(
+        short = 'o',
+        long = "output",
+        default_value = "%(title)s [%(id)s].%(ext)s"
+    )]
     pub output: String,
 
     /// Container for merged video+audio output.
@@ -63,6 +67,15 @@ pub struct Cli {
     /// flagging and can unlock formats that need the JS player.
     #[arg(long = "cookies", value_name = "FILE")]
     pub cookies: Option<std::path::PathBuf>,
+
+    /// Load cookies directly from a local browser profile:
+    /// `firefox|chrome|chromium|brave|edge[:PROFILE]`.
+    #[arg(
+        long = "cookies-from-browser",
+        value_name = "BROWSER[:PROFILE]",
+        conflicts_with = "cookies"
+    )]
+    pub cookies_from_browser: Option<String>,
 
     /// InnerTube player client(s) to use, in priority order
     /// (e.g. `web`, `ios`, `android_vr`, `tv`). Repeatable.

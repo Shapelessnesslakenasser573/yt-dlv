@@ -170,7 +170,9 @@ fn extract_n_function_name(js: &str) -> Option<String> {
         r#"(?P<nfunc>[a-zA-Z0-9$]{2,})\s*=\s*function\(\s*[a-zA-Z0-9$]+\s*\)\s*\{\s*var\s+[a-zA-Z0-9$]+\s*=\s*[a-zA-Z0-9$]+\.split\("#,
     )
     .unwrap();
-    alt.captures(js)?.name("nfunc").map(|m| m.as_str().to_string())
+    alt.captures(js)?
+        .name("nfunc")
+        .map(|m| m.as_str().to_string())
 }
 
 /// Resolve `var NAME=[a,b,c]` and return element `idx` (a function name).
@@ -179,7 +181,11 @@ fn resolve_func_array(js: &str, name: &str, idx: usize) -> Option<String> {
     let start = js.find(&needle)? + needle.len() - 1; // at '['
     let end = scan_balanced(js, start, b'[', b']')?;
     let inner = &js[start + 1..end];
-    inner.split(',').map(str::trim).nth(idx).map(|s| s.to_string())
+    inner
+        .split(',')
+        .map(str::trim)
+        .nth(idx)
+        .map(|s| s.to_string())
 }
 
 // ---------------------------------------------------------------------------
@@ -400,8 +406,27 @@ pub fn scan_balanced(s: &str, open_idx: usize, open: u8, close: u8) -> Option<us
 fn regex_can_start(prev: u8) -> bool {
     matches!(
         prev,
-        0 | b'(' | b',' | b'=' | b':' | b'[' | b'!' | b'&' | b'|' | b'?' | b'{' | b'}' | b';' | b'+'
-            | b'-' | b'*' | b'<' | b'>' | b'~' | b'^' | b'%' | b'\n'
+        0 | b'('
+            | b','
+            | b'='
+            | b':'
+            | b'['
+            | b'!'
+            | b'&'
+            | b'|'
+            | b'?'
+            | b'{'
+            | b'}'
+            | b';'
+            | b'+'
+            | b'-'
+            | b'*'
+            | b'<'
+            | b'>'
+            | b'~'
+            | b'^'
+            | b'%'
+            | b'\n'
     )
 }
 

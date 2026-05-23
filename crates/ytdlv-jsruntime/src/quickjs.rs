@@ -20,7 +20,9 @@ impl QuickJsRuntime {
     pub fn new() -> Self {
         // 64 MiB is comfortably more than any nsig transform needs while still
         // bounding a runaway/hostile script.
-        Self { memory_limit: 64 * 1024 * 1024 }
+        Self {
+            memory_limit: 64 * 1024 * 1024,
+        }
     }
 
     pub fn with_memory_limit(memory_limit: usize) -> Self {
@@ -36,12 +38,12 @@ impl super::JsRuntime for QuickJsRuntime {
         }
         let ctx = Context::full(&rt).map_err(|e| anyhow!("quickjs context: {e}"))?;
 
-        ctx.with(|ctx| {
-            match ctx.eval::<Coerced<String>, _>(code).catch(&ctx) {
+        ctx.with(
+            |ctx| match ctx.eval::<Coerced<String>, _>(code).catch(&ctx) {
                 Ok(v) => Ok(v.0),
                 Err(caught) => Err(anyhow!("{caught}")),
-            }
-        })
+            },
+        )
     }
 
     fn name(&self) -> &'static str {

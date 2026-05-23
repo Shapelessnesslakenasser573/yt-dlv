@@ -35,15 +35,17 @@ impl HttpClient {
 
     /// GET a URL and return the body as text.
     pub async fn get_text(&self, url: &str) -> reqwest::Result<String> {
-        self.inner.get(url).send().await?.error_for_status()?.text().await
+        self.inner
+            .get(url)
+            .send()
+            .await?
+            .error_for_status()?
+            .text()
+            .await
     }
 
     /// GET a URL with extra headers and return the body as text.
-    pub async fn get_text_with(
-        &self,
-        url: &str,
-        headers: HeaderMap,
-    ) -> reqwest::Result<String> {
+    pub async fn get_text_with(&self, url: &str, headers: HeaderMap) -> reqwest::Result<String> {
         self.inner
             .get(url)
             .headers(headers)
@@ -95,7 +97,13 @@ impl HttpClient {
 
     /// HEAD-like probe via a 0-0 range request to learn total size.
     pub async fn content_length(&self, url: &str, headers: &HeaderMap) -> Option<u64> {
-        let resp = self.inner.get(url).headers(headers.clone()).send().await.ok()?;
+        let resp = self
+            .inner
+            .get(url)
+            .headers(headers.clone())
+            .send()
+            .await
+            .ok()?;
         resp.content_length()
     }
 }
@@ -139,7 +147,10 @@ impl HttpClientBuilder {
         }
 
         let mut builder = reqwest::Client::builder()
-            .user_agent(self.user_agent.unwrap_or_else(|| DEFAULT_USER_AGENT.to_string()))
+            .user_agent(
+                self.user_agent
+                    .unwrap_or_else(|| DEFAULT_USER_AGENT.to_string()),
+            )
             .default_headers(headers)
             .timeout(Duration::from_secs(60))
             .connect_timeout(Duration::from_secs(20));
@@ -166,7 +177,9 @@ impl HttpClientBuilder {
             None => {}
         }
 
-        Ok(HttpClient { inner: builder.build()? })
+        Ok(HttpClient {
+            inner: builder.build()?,
+        })
     }
 }
 
@@ -179,23 +192,34 @@ mod tests {
 
     #[test]
     fn builds_with_http_proxy() {
-        assert!(HttpClient::builder().proxy(Some("http://127.0.0.1:8080".into())).build().is_ok());
+        assert!(HttpClient::builder()
+            .proxy(Some("http://127.0.0.1:8080".into()))
+            .build()
+            .is_ok());
     }
 
     #[test]
     fn builds_with_socks5_proxy() {
         // Fails to build unless reqwest's `socks` feature is enabled.
-        assert!(HttpClient::builder().proxy(Some("socks5://127.0.0.1:1080".into())).build().is_ok());
+        assert!(HttpClient::builder()
+            .proxy(Some("socks5://127.0.0.1:1080".into()))
+            .build()
+            .is_ok());
     }
 
     #[test]
     fn empty_proxy_disables_and_builds() {
-        assert!(HttpClient::builder().proxy(Some(String::new())).build().is_ok());
+        assert!(HttpClient::builder()
+            .proxy(Some(String::new()))
+            .build()
+            .is_ok());
     }
 
     #[test]
     fn invalid_proxy_errors() {
-        let err = HttpClient::builder().proxy(Some("http://bad host with spaces".into())).build();
+        let err = HttpClient::builder()
+            .proxy(Some("http://bad host with spaces".into()))
+            .build();
         assert!(err.is_err());
     }
 }

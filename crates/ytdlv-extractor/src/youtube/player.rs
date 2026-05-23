@@ -70,9 +70,18 @@ pub fn build_request_body(client: &InnerTubeClient, video_id: &str, sts: Option<
 /// Build request headers identifying the client.
 pub fn build_headers(client: &InnerTubeClient) -> Result<HeaderMap> {
     let mut h = HeaderMap::new();
-    h.insert(reqwest::header::CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    h.insert(reqwest::header::ORIGIN, HeaderValue::from_static("https://www.youtube.com"));
-    h.insert(reqwest::header::USER_AGENT, HeaderValue::from_str(client.user_agent)?);
+    h.insert(
+        reqwest::header::CONTENT_TYPE,
+        HeaderValue::from_static("application/json"),
+    );
+    h.insert(
+        reqwest::header::ORIGIN,
+        HeaderValue::from_static("https://www.youtube.com"),
+    );
+    h.insert(
+        reqwest::header::USER_AGENT,
+        HeaderValue::from_str(client.user_agent)?,
+    );
     h.insert(
         HeaderName::from_static("x-youtube-client-name"),
         HeaderValue::from_str(&client.client_id.to_string())?,
@@ -120,32 +129,45 @@ pub fn check_playability(resp: &Value) -> Result<()> {
 pub fn parse_video_details(resp: &Value) -> VideoDetails {
     let d = resp.get("videoDetails").cloned().unwrap_or(Value::Null);
     VideoDetails {
-        id: d.get("videoId").and_then(Value::as_str).unwrap_or_default().to_string(),
-        title: d.get("title").and_then(Value::as_str).unwrap_or_default().to_string(),
+        id: d
+            .get("videoId")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        title: d
+            .get("title")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
         duration: d
             .get("lengthSeconds")
             .and_then(Value::as_str)
             .and_then(|s| s.parse::<f64>().ok()),
         author: d.get("author").and_then(Value::as_str).map(str::to_string),
-        channel_id: d.get("channelId").and_then(Value::as_str).map(str::to_string),
+        channel_id: d
+            .get("channelId")
+            .and_then(Value::as_str)
+            .map(str::to_string),
         view_count: d
             .get("viewCount")
             .and_then(Value::as_str)
             .and_then(|s| s.parse::<u64>().ok()),
-        description: d.get("shortDescription").and_then(Value::as_str).map(str::to_string),
+        description: d
+            .get("shortDescription")
+            .and_then(Value::as_str)
+            .map(str::to_string),
         is_live: d.get("isLiveContent").and_then(Value::as_bool),
     }
 }
 
 /// Parse all `formats` + `adaptiveFormats`, resolving URLs via the solver.
-pub fn parse_formats(
-    resp: &Value,
-    solver: &PlayerSolver,
-    rt: &dyn JsRuntime,
-) -> Vec<Format> {
+pub fn parse_formats(resp: &Value, solver: &PlayerSolver, rt: &dyn JsRuntime) -> Vec<Format> {
     let mut out = Vec::new();
     for key in ["formats", "adaptiveFormats"] {
-        if let Some(arr) = resp.pointer(&format!("/streamingData/{key}")).and_then(Value::as_array) {
+        if let Some(arr) = resp
+            .pointer(&format!("/streamingData/{key}"))
+            .and_then(Value::as_array)
+        {
             for f in arr {
                 match parse_one_format(f, solver, rt) {
                     Ok(Some(fmt)) => out.push(fmt),
@@ -163,7 +185,10 @@ fn parse_one_format(
     solver: &PlayerSolver,
     rt: &dyn JsRuntime,
 ) -> Result<Option<Format>> {
-    let itag = f.get("itag").and_then(Value::as_i64).ok_or_else(|| anyhow!("no itag"))?;
+    let itag = f
+        .get("itag")
+        .and_then(Value::as_i64)
+        .ok_or_else(|| anyhow!("no itag"))?;
 
     // DRM-protected formats are unusable; skip but mark.
     let has_drm = f.get("drmFamilies").is_some();
@@ -183,9 +208,18 @@ fn parse_one_format(
         height: f.get("height").and_then(Value::as_u64).map(|v| v as u32),
         fps: f.get("fps").and_then(Value::as_f64),
         tbr: f.get("bitrate").and_then(Value::as_f64).map(|b| b / 1000.0),
-        asr: f.get("audioSampleRate").and_then(Value::as_str).and_then(|s| s.parse().ok()),
-        audio_channels: f.get("audioChannels").and_then(Value::as_u64).map(|v| v as u32),
-        filesize: f.get("contentLength").and_then(Value::as_str).and_then(|s| s.parse().ok()),
+        asr: f
+            .get("audioSampleRate")
+            .and_then(Value::as_str)
+            .and_then(|s| s.parse().ok()),
+        audio_channels: f
+            .get("audioChannels")
+            .and_then(Value::as_u64)
+            .map(|v| v as u32),
+        filesize: f
+            .get("contentLength")
+            .and_then(Value::as_str)
+            .and_then(|s| s.parse().ok()),
         quality: f.get("itag").and_then(Value::as_f64),
         has_drm,
         ..Default::default()
@@ -206,8 +240,8 @@ fn resolve_url(f: &Value, solver: &PlayerSolver, rt: &dyn JsRuntime) -> Result<S
         .or_else(|| f.get("cipher"))
         .and_then(Value::as_str)
     {
-        let (s, sp, base) = parse_signature_cipher(cipher)
-            .ok_or_else(|| anyhow!("malformed signatureCipher"))?;
+        let (s, sp, base) =
+            parse_signature_cipher(cipher).ok_or_else(|| anyhow!("malformed signatureCipher"))?;
         let sig = solver.decrypt_signature(rt, &s)?;
         set_query_param(&base, &sp, &sig)
     } else if let Some(u) = f.get("url").and_then(Value::as_str) {
@@ -248,7 +282,11 @@ fn parse_mime(mime: &str) -> (String, String) {
 
 /// Decide vcodec/acodec from the codecs string and the format's audio fields.
 fn split_codecs(codecs: &str, f: &Value) -> (Option<String>, Option<String>) {
-    let parts: Vec<&str> = codecs.split(',').map(str::trim).filter(|s| !s.is_empty()).collect();
+    let parts: Vec<&str> = codecs
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
     let is_audio = f.get("audioSampleRate").is_some() && f.get("width").is_none();
     let is_video_only = f.get("width").is_some() && f.get("audioSampleRate").is_none();
 
@@ -271,7 +309,11 @@ fn split_codecs(codecs: &str, f: &Value) -> (Option<String>, Option<String>) {
 }
 
 fn looks_like_audio(codec: &str) -> bool {
-    codec.starts_with("mp4a") || codec.starts_with("opus") || codec.starts_with("vorbis") || codec.starts_with("ac-3") || codec.starts_with("ec-3")
+    codec.starts_with("mp4a")
+        || codec.starts_with("opus")
+        || codec.starts_with("vorbis")
+        || codec.starts_with("ac-3")
+        || codec.starts_with("ec-3")
 }
 
 fn pick_ext(container: &str, has_video: bool) -> String {
@@ -289,7 +331,10 @@ fn pick_ext(container: &str, has_video: bool) -> String {
 
 fn get_query_param(u: &str, key: &str) -> Option<String> {
     let parsed = Url::parse(u).ok()?;
-    parsed.query_pairs().find(|(k, _)| k == key).map(|(_, v)| v.into_owned())
+    parsed
+        .query_pairs()
+        .find(|(k, _)| k == key)
+        .map(|(_, v)| v.into_owned())
 }
 
 /// Set (or append) a query parameter, preserving order of existing pairs.
@@ -297,8 +342,10 @@ fn set_query_param(u: &str, key: &str, val: &str) -> String {
     let Ok(mut parsed) = Url::parse(u) else {
         return u.to_string();
     };
-    let pairs: Vec<(String, String)> =
-        parsed.query_pairs().map(|(k, v)| (k.into_owned(), v.into_owned())).collect();
+    let pairs: Vec<(String, String)> = parsed
+        .query_pairs()
+        .map(|(k, v)| (k.into_owned(), v.into_owned()))
+        .collect();
     let mut found = false;
     {
         let mut qp = parsed.query_pairs_mut();

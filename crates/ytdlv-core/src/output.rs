@@ -20,7 +20,10 @@ mod once_cell_lite {
     }
     impl<T> Lazy<T> {
         pub const fn new(init: fn() -> T) -> Self {
-            Self { cell: OnceLock::new(), init }
+            Self {
+                cell: OnceLock::new(),
+                init,
+            }
         }
     }
     impl<T> Deref for Lazy<T> {
@@ -90,7 +93,10 @@ fn build_fields(info: &InfoDict, ext: &str) -> HashMap<String, String> {
 /// Sanitise into a filename safe across platforms while preserving any path
 /// separators the template intentionally produced.
 fn sanitize_path(s: &str) -> String {
-    s.split('/').map(sanitize_component).collect::<Vec<_>>().join("/")
+    s.split('/')
+        .map(sanitize_component)
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 fn sanitize_component(s: &str) -> String {
@@ -128,7 +134,10 @@ mod tests {
     #[test]
     fn renders_default_template() {
         let out = render("%(title)s [%(id)s].%(ext)s", &sample(), "mp4");
-        assert_eq!(out, "Rick Astley - Never Gonna Give You Up [dQw4w9WgXcQ].mp4");
+        assert_eq!(
+            out,
+            "Rick Astley - Never Gonna Give You Up [dQw4w9WgXcQ].mp4"
+        );
     }
 
     #[test]

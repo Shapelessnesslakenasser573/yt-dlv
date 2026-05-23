@@ -27,8 +27,7 @@ fn spawn_server(body: Vec<u8>) -> String {
             // Read request headers.
             let mut buf = Vec::new();
             let mut tmp = [0u8; 1024];
-            loop {
-                let Ok(n) = stream.read(&mut tmp) else { break };
+            while let Ok(n) = stream.read(&mut tmp) {
                 if n == 0 {
                     break;
                 }
@@ -94,9 +93,17 @@ async fn downloads_full_file() {
     let dest: PathBuf = dir.join("full.bin");
     let _ = std::fs::remove_file(&dest);
 
-    download_format(&http, &fmt(format!("{base}/file"), 20_000), &dest, &DownloadOptions { overwrite: true, quiet: true })
-        .await
-        .unwrap();
+    download_format(
+        &http,
+        &fmt(format!("{base}/file"), 20_000),
+        &dest,
+        &DownloadOptions {
+            overwrite: true,
+            quiet: true,
+        },
+    )
+    .await
+    .unwrap();
 
     assert_eq!(std::fs::read(&dest).unwrap(), data);
 }
@@ -116,9 +123,17 @@ async fn resumes_from_partial() {
     // Pre-seed a partial download of the first 8000 bytes.
     std::fs::write(&part, &data[..8000]).unwrap();
 
-    download_format(&http, &fmt(format!("{base}/file"), 20_000), &dest, &DownloadOptions { overwrite: true, quiet: true })
-        .await
-        .unwrap();
+    download_format(
+        &http,
+        &fmt(format!("{base}/file"), 20_000),
+        &dest,
+        &DownloadOptions {
+            overwrite: true,
+            quiet: true,
+        },
+    )
+    .await
+    .unwrap();
 
     // The result must be the full, correct file — proving we resumed at 8000
     // (via Range) and appended the remainder rather than corrupting it.

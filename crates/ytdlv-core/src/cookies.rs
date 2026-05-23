@@ -61,22 +61,30 @@ pub fn parse_netscape(content: &str) -> Vec<NetscapeCookie> {
     out
 }
 
-/// Build a `reqwest` cookie jar from Netscape cookie-file content.
-pub fn jar_from_netscape(content: &str) -> Arc<Jar> {
+/// Build a `reqwest` cookie jar from parsed cookies (file- or browser-sourced).
+pub fn jar_from_cookies(cookies: &[NetscapeCookie]) -> Arc<Jar> {
     let jar = Jar::default();
-    for c in parse_netscape(content) {
+    for c in cookies {
         let host = c.domain.trim_start_matches('.');
         let scheme = if c.secure { "https" } else { "http" };
         let Ok(url) = format!("{scheme}://{host}{}", c.path).parse::<reqwest::Url>() else {
             continue;
         };
-        let mut cookie = format!("{}={}; Domain={}; Path={}", c.name, c.value, c.domain, c.path);
+        let mut cookie = format!(
+            "{}={}; Domain={}; Path={}",
+            c.name, c.value, c.domain, c.path
+        );
         if c.secure {
             cookie.push_str("; Secure");
         }
         jar.add_cookie_str(&cookie, &url);
     }
     Arc::new(jar)
+}
+
+/// Build a `reqwest` cookie jar from Netscape cookie-file content.
+pub fn jar_from_netscape(content: &str) -> Arc<Jar> {
+    jar_from_cookies(&parse_netscape(content))
 }
 
 /// Load a Netscape cookie file into a jar.

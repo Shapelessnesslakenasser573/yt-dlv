@@ -23,6 +23,12 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 percent-encoding = "2"
 url = "2"
+rusqlite = { version = "0.32", features = ["bundled"] }
+aes = "0.8"
+cbc = "0.1"
+pbkdf2 = "0.12"
+sha1 = "0.10"
+dirs = "5"
 
 ytdlv-core = { path = "crates/ytdlv-core" }
 ytdlv-jsruntime = { path = "crates/ytdlv-jsruntime" }

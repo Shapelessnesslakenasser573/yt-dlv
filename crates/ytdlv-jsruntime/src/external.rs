@@ -60,12 +60,18 @@ pub struct ExternalRuntime {
 
 impl ExternalRuntime {
     pub fn new(kind: ExternalRuntimeKind) -> Self {
-        Self { kind, binary: kind.default_binary().to_string() }
+        Self {
+            kind,
+            binary: kind.default_binary().to_string(),
+        }
     }
 
     /// Override the binary path (e.g. a non-PATH install).
     pub fn with_binary(kind: ExternalRuntimeKind, binary: impl Into<String>) -> Self {
-        Self { kind, binary: binary.into() }
+        Self {
+            kind,
+            binary: binary.into(),
+        }
     }
 }
 
@@ -83,8 +89,7 @@ impl super::JsRuntime for ExternalRuntime {
         );
 
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let path = std::env::temp_dir()
-            .join(format!("ytdlv-js-{}-{n}.js", std::process::id()));
+        let path = std::env::temp_dir().join(format!("ytdlv-js-{}-{n}.js", std::process::id()));
         {
             let mut f = std::fs::File::create(&path)
                 .with_context(|| format!("creating temp script {}", path.display()))?;
@@ -97,9 +102,8 @@ impl super::JsRuntime for ExternalRuntime {
             .output();
         let _ = std::fs::remove_file(&path);
 
-        let out = result.map_err(|e| {
-            anyhow!("failed to spawn external runtime '{}': {e}", self.binary)
-        })?;
+        let out = result
+            .map_err(|e| anyhow!("failed to spawn external runtime '{}': {e}", self.binary))?;
 
         if !out.status.success() {
             bail!(

@@ -157,7 +157,9 @@ fn parse_filters(mut s: &str) -> Result<Vec<Filter>, String> {
         if !s.starts_with('[') {
             return Err(format!("expected '[' in filter, got {s:?}"));
         }
-        let end = s.find(']').ok_or_else(|| "unterminated '[' filter".to_string())?;
+        let end = s
+            .find(']')
+            .ok_or_else(|| "unterminated '[' filter".to_string())?;
         let inner = &s[1..end];
         filters.push(parse_filter(inner.trim())?);
         s = &s[end + 1..];
@@ -181,11 +183,17 @@ fn parse_filter(s: &str) -> Result<Filter, String> {
     for (tok, op) in OPS {
         if let Some(i) = s.find(tok) {
             let field = s[..i].trim().to_string();
-            let value = s[i + tok.len()..].trim().trim_matches(|c| c == '\'' || c == '"');
+            let value = s[i + tok.len()..]
+                .trim()
+                .trim_matches(|c| c == '\'' || c == '"');
             if field.is_empty() {
                 return Err(format!("empty field in filter {s:?}"));
             }
-            return Ok(Filter { field, op: *op, value: value.to_string() });
+            return Ok(Filter {
+                field,
+                op: *op,
+                value: value.to_string(),
+            });
         }
     }
     Err(format!("no operator in filter {s:?}"))
@@ -242,7 +250,10 @@ impl Base {
 /// Ranking score; higher is better. Audio-oriented selectors rank by bitrate,
 /// everything else by resolution then bitrate then fps.
 fn rank(base: &Base, f: &Format) -> f64 {
-    let audio_oriented = matches!(base, Base::BestAudioOnly | Base::WorstAudioOnly | Base::BestWithAudio);
+    let audio_oriented = matches!(
+        base,
+        Base::BestAudioOnly | Base::WorstAudioOnly | Base::BestWithAudio
+    );
     if audio_oriented {
         let abr = f.abr.or(f.effective_tbr()).unwrap_or(0.0);
         let asr = f.asr.unwrap_or(0) as f64;
@@ -260,7 +271,11 @@ fn rank(base: &Base, f: &Format) -> f64 {
 impl Filter {
     fn matches(&self, f: &Format) -> bool {
         if let Some(num) = self.numeric_field(f) {
-            let Ok(rhs) = self.value.parse::<f64>().or_else(|_| parse_size(&self.value)) else {
+            let Ok(rhs) = self
+                .value
+                .parse::<f64>()
+                .or_else(|_| parse_size(&self.value))
+            else {
                 return false;
             };
             return match self.op {
@@ -314,6 +329,18 @@ impl Filter {
             _ => None,
         }
     }
+}
+
+/// Parse human sizes like `50M`, `1.5G`, `700k` into bytes.
+fn parse_size(s: &str) -> Result<f64, std::num::ParseFloatError> {
+    let s = s.trim();
+    let (num, mult) = match s.chars().last() {
+        Some('k') | Some('K') => (&s[..s.len() - 1], 1e3),
+        Some('m') | Some('M') => (&s[..s.len() - 1], 1e6),
+        Some('g') | Some('G') => (&s[..s.len() - 1], 1e9),
+        _ => (s, 1.0),
+    };
+    Ok(num.trim().parse::<f64>()? * mult)
 }
 
 #[cfg(test)]
@@ -371,7 +398,10 @@ mod tests {
 
     #[test]
     fn default_selector_merges_best_video_and_audio() {
-        let sel = FormatSelector::parse("bv*+ba/b").unwrap().select(&pool()).unwrap();
+        let sel = FormatSelector::parse("bv*+ba/b")
+            .unwrap()
+            .select(&pool())
+            .unwrap();
         // bv* = best with video (1080 avc1 @4000 beats vp9 @3000), ba = 251 @160.
         assert_eq!(ids(&sel), vec!["137", "251"]);
         assert!(sel.needs_merge());
@@ -379,8 +409,14 @@ mod tests {
 
     #[test]
     fn fallback_to_muxed_when_no_adaptive() {
-        let only_muxed = vec![muxed("18", 360, "mp4", 600.0), muxed("22", 720, "mp4", 1500.0)];
-        let sel = FormatSelector::parse("bv+ba/b").unwrap().select(&only_muxed).unwrap();
+        let only_muxed = vec![
+            muxed("18", 360, "mp4", 600.0),
+            muxed("22", 720, "mp4", 1500.0),
+        ];
+        let sel = FormatSelector::parse("bv+ba/b")
+            .unwrap()
+            .select(&only_muxed)
+            .unwrap();
         // No video-only/audio-only present, so the +-merge fails and we fall to b.
         assert_eq!(ids(&sel), vec!["22"]);
         assert!(!sel.needs_merge());
@@ -388,7 +424,10 @@ mod tests {
 
     #[test]
     fn height_filter_caps_resolution() {
-        let sel = FormatSelector::parse("bv*[height<=720]").unwrap().select(&pool()).unwrap();
+        let sel = FormatSelector::parse("bv*[height<=720]")
+            .unwrap()
+            .select(&pool())
+            .unwrap();
         assert_eq!(ids(&sel), vec!["136"]);
     }
 
@@ -403,7 +442,10 @@ mod tests {
 
     #[test]
     fn explicit_id_selection() {
-        let sel = FormatSelector::parse("136+140").unwrap().select(&pool()).unwrap();
+        let sel = FormatSelector::parse("136+140")
+            .unwrap()
+            .select(&pool())
+            .unwrap();
         assert_eq!(ids(&sel), vec!["136", "140"]);
     }
 
@@ -418,16 +460,4 @@ mod tests {
         assert_eq!(parse_size("50M").unwrap(), 50e6);
         assert_eq!(parse_size("1.5G").unwrap(), 1.5e9);
     }
-}
-
-/// Parse human sizes like `50M`, `1.5G`, `700k` into bytes.
-fn parse_size(s: &str) -> Result<f64, std::num::ParseFloatError> {
-    let s = s.trim();
-    let (num, mult) = match s.chars().last() {
-        Some('k') | Some('K') => (&s[..s.len() - 1], 1e3),
-        Some('m') | Some('M') => (&s[..s.len() - 1], 1e6),
-        Some('g') | Some('G') => (&s[..s.len() - 1], 1e9),
-        _ => (s, 1.0),
-    };
-    Ok(num.trim().parse::<f64>()? * mult)
 }

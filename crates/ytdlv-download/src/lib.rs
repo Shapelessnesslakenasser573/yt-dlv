@@ -15,18 +15,12 @@ use reqwest::header::HeaderMap;
 use tokio::io::AsyncWriteExt;
 use ytdlv_core::{Format, HttpClient, Protocol};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DownloadOptions {
     /// Overwrite an existing completed file instead of skipping it.
     pub overwrite: bool,
     /// Suppress the progress bar.
     pub quiet: bool,
-}
-
-impl Default for DownloadOptions {
-    fn default() -> Self {
-        Self { overwrite: false, quiet: false }
-    }
 }
 
 /// Download a single format to `dest`. Returns the path written.
@@ -107,8 +101,7 @@ pub async fn download_format(
     file.flush().await?;
     drop(file);
 
-    std::fs::rename(&part, dest)
-        .with_context(|| format!("finalizing {}", dest.display()))?;
+    std::fs::rename(&part, dest).with_context(|| format!("finalizing {}", dest.display()))?;
     pb.finish_and_clear();
     if !opts.quiet {
         tracing::info!("downloaded {}", dest.display());
@@ -161,6 +154,9 @@ mod tests {
 
     #[test]
     fn part_path_appends_suffix() {
-        assert_eq!(part_path(Path::new("video.mp4")), PathBuf::from("video.mp4.part"));
+        assert_eq!(
+            part_path(Path::new("video.mp4")),
+            PathBuf::from("video.mp4.part")
+        );
     }
 }

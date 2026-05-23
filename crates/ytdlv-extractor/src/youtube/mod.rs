@@ -42,8 +42,7 @@ impl Extractor for YoutubeExtractor {
     }
 
     async fn extract(&self, url: &str, ctx: &ExtractContext<'_>) -> Result<Extraction> {
-        let video_id = parse_video_id(url)
-            .ok_or_else(|| Error::UnsupportedUrl(url.to_string()))?;
+        let video_id = parse_video_id(url).ok_or_else(|| Error::UnsupportedUrl(url.to_string()))?;
         tracing::info!("youtube: extracting video {video_id}");
 
         // Build the JS solver from base.js (needed for web/tv clients + sts).
@@ -66,7 +65,10 @@ impl Extractor for YoutubeExtractor {
         let sts = solver.as_ref().and_then(|s| s.signature_timestamp);
 
         let order: Vec<String> = if ctx.options.player_clients.is_empty() {
-            clients::DEFAULT_ORDER.iter().map(|s| s.to_string()).collect()
+            clients::DEFAULT_ORDER
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
         } else {
             ctx.options.player_clients.clone()
         };
@@ -117,7 +119,10 @@ impl Extractor for YoutubeExtractor {
 
             let mut added = 0usize;
             for f in parsed {
-                if !formats.iter().any(|e: &ytdlv_core::Format| e.format_id == f.format_id) {
+                if !formats
+                    .iter()
+                    .any(|e: &ytdlv_core::Format| e.format_id == f.format_id)
+                {
                     formats.push(f);
                     added += 1;
                 }
@@ -132,7 +137,9 @@ impl Extractor for YoutubeExtractor {
         if formats.is_empty() {
             return Err(Error::Extraction(format!(
                 "no formats extracted for {video_id}{}",
-                last_error.map(|e| format!(" (last error: {e})")).unwrap_or_default()
+                last_error
+                    .map(|e| format!(" (last error: {e})"))
+                    .unwrap_or_default()
             )));
         }
 
@@ -140,7 +147,11 @@ impl Extractor for YoutubeExtractor {
         let resp = first_resp.unwrap_or(Value::Null);
 
         let info = InfoDict {
-            id: if details.id.is_empty() { video_id.clone() } else { details.id },
+            id: if details.id.is_empty() {
+                video_id.clone()
+            } else {
+                details.id
+            },
             title: if details.title.is_empty() {
                 video_id.clone()
             } else {
@@ -204,7 +215,9 @@ fn find_player_js_url(html: &str) -> Option<String> {
 }
 
 fn is_youtube_host(url: &str) -> bool {
-    let host = url::Url::parse(url).ok().and_then(|u| u.host_str().map(str::to_string));
+    let host = url::Url::parse(url)
+        .ok()
+        .and_then(|u| u.host_str().map(str::to_string));
     match host {
         Some(h) => {
             let h = h.trim_start_matches("www.").trim_start_matches("m.");
@@ -288,7 +301,10 @@ mod tests {
             ("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "dQw4w9WgXcQ"),
             ("https://youtu.be/dQw4w9WgXcQ?t=10", "dQw4w9WgXcQ"),
             ("https://www.youtube.com/shorts/abcdefghijk", "abcdefghijk"),
-            ("https://m.youtube.com/watch?v=dQw4w9WgXcQ&list=x", "dQw4w9WgXcQ"),
+            (
+                "https://m.youtube.com/watch?v=dQw4w9WgXcQ&list=x",
+                "dQw4w9WgXcQ",
+            ),
             ("https://www.youtube.com/embed/dQw4w9WgXcQ", "dQw4w9WgXcQ"),
         ];
         for (url, id) in cases {

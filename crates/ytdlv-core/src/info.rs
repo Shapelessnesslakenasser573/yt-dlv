@@ -91,20 +91,16 @@ pub struct InfoDict {
 /// selects the downloader.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum Protocol {
     /// Plain HTTP(S), range-capable. The common case for YouTube progressive
     /// and adaptive formats.
+    #[default]
     Https,
     /// Native HLS (m3u8) fragment download.
     M3u8Native,
     /// DASH segments described by an MPD manifest.
     HttpDashSegments,
-}
-
-impl Default for Protocol {
-    fn default() -> Self {
-        Protocol::Https
-    }
 }
 
 /// A single downloadable rendition.
@@ -200,7 +196,7 @@ impl Format {
 
     /// Best-effort total bitrate for ranking, falling back across tbr/vbr+abr.
     pub fn effective_tbr(&self) -> Option<f64> {
-        self.tbr.or_else(|| match (self.vbr, self.abr) {
+        self.tbr.or(match (self.vbr, self.abr) {
             (Some(v), Some(a)) => Some(v + a),
             (Some(v), None) => Some(v),
             (None, Some(a)) => Some(a),

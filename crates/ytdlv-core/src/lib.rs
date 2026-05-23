@@ -2,6 +2,7 @@
 //! `-f` format-selection language, output templating, and a shared HTTP client.
 
 pub mod cookies;
+pub mod cookies_browser;
 pub mod format_selection;
 pub mod info;
 pub mod net;

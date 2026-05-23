@@ -6,17 +6,18 @@ use ytdlv_core::{Format, InfoDict};
 pub fn print(info: &InfoDict) {
     println!("Available formats for {}:", info.id);
     println!(
-        "{:<8} {:<5} {:<11} {:>5} {:>9} {:<14} {:<14} {}",
-        "ID", "EXT", "RESOLUTION", "FPS", "TBR", "VCODEC", "ACODEC", "NOTE"
+        "{:<8} {:<5} {:<11} {:>5} {:>9} {:<14} {:<14} NOTE",
+        "ID", "EXT", "RESOLUTION", "FPS", "TBR", "VCODEC", "ACODEC"
     );
     println!("{}", "-".repeat(96));
 
     let mut formats: Vec<&Format> = info.formats.iter().collect();
     formats.sort_by(|a, b| {
-        a.height
-            .unwrap_or(0)
-            .cmp(&b.height.unwrap_or(0))
-            .then(a.effective_tbr().unwrap_or(0.0).total_cmp(&b.effective_tbr().unwrap_or(0.0)))
+        a.height.unwrap_or(0).cmp(&b.height.unwrap_or(0)).then(
+            a.effective_tbr()
+                .unwrap_or(0.0)
+                .total_cmp(&b.effective_tbr().unwrap_or(0.0)),
+        )
     });
 
     for f in formats {
@@ -25,8 +26,14 @@ pub fn print(info: &InfoDict) {
             _ if f.is_audio_only() => "audio only".to_string(),
             _ => "-".to_string(),
         };
-        let fps = f.fps.map(|v| format!("{}", v as u32)).unwrap_or_else(|| "-".into());
-        let tbr = f.effective_tbr().map(|v| format!("{:.0}k", v)).unwrap_or_else(|| "-".into());
+        let fps = f
+            .fps
+            .map(|v| format!("{}", v as u32))
+            .unwrap_or_else(|| "-".into());
+        let tbr = f
+            .effective_tbr()
+            .map(|v| format!("{:.0}k", v))
+            .unwrap_or_else(|| "-".into());
         let note = build_note(f);
         println!(
             "{:<8} {:<5} {:<11} {:>5} {:>9} {:<14} {:<14} {}",

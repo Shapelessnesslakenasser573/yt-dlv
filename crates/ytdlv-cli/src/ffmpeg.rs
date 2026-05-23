@@ -19,7 +19,11 @@ pub fn merge(video: &Path, audio: &Path, out: &Path) -> Result<()> {
     // Common case: mp4 can't hold opus/vp9 by stream-copy. Retry as mkv.
     if out.extension().and_then(|e| e.to_str()) != Some("mkv") {
         let mkv = out.with_extension("mkv");
-        tracing::warn!("ffmpeg copy into {} failed; retrying as {}", out.display(), mkv.display());
+        tracing::warn!(
+            "ffmpeg copy into {} failed; retrying as {}",
+            out.display(),
+            mkv.display()
+        );
         let status = run_merge(video, audio, &mkv)?;
         if status.success() {
             return Ok(());

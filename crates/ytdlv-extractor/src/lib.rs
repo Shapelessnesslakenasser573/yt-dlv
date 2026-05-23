@@ -34,11 +34,7 @@ pub trait Extractor: Send + Sync {
     /// Whether this extractor handles `url` (the `_VALID_URL` check).
     fn matches(&self, url: &str) -> bool;
 
-    async fn extract(
-        &self,
-        url: &str,
-        ctx: &ExtractContext<'_>,
-    ) -> ytdlv_core::Result<Extraction>;
+    async fn extract(&self, url: &str, ctx: &ExtractContext<'_>) -> ytdlv_core::Result<Extraction>;
 }
 
 /// All registered extractors, in match priority order.
