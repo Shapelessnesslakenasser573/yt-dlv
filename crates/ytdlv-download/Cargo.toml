@@ -1,0 +1,15 @@
+[package]
+name = "ytdlv-download"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+futures-util.workspace = true
+indicatif.workspace = true
+ytdlv-core.workspace = true
