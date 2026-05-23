@@ -38,8 +38,8 @@ cargo install --path crates/ytdlv-cli   # or install into ~/.cargo/bin
 |-------|----------------|
 | `ytdlv-core` | The info-dict contract, the `-f` format-selection language, output-filename templating, and the shared HTTP client. |
 | `ytdlv-jsruntime` | The `JsRuntime` trait + embedded **QuickJS** backend (default) + external-runtime backend (Deno/Node/Bun/QuickJS) scaffold. |
-| `ytdlv-extractor` | The `Extractor` trait + registry, and the **YouTube** extractor: InnerTube clients, `streamingData` parsing, and `base.js` signature/`n` solving. |
-| `ytdlv-download` | Ranged, resumable HTTP download engine with progress. |
+| `ytdlv-extractor` | The `Extractor` trait + registry: the **YouTube** extractor (InnerTube clients, `streamingData` parsing, playlists, `base.js` sig/`n` solving) and a **generic** catch-all (direct media + `og:video` scraping). |
+| `ytdlv-download` | Download engine: ranged/resumable HTTP and a native **HLS (m3u8)** segment downloader, with progress. |
 | `ytdlv-cli` | The `yt-dlv` binary: the orchestrator (yt-dlp's `YoutubeDL` equivalent), `-F` listing, and ffmpeg muxing. |
 
 ## Usage
@@ -58,6 +58,17 @@ yt-dlv --cookies-from-browser 'chrome:Profile 1' URL    # specific Chromium prof
 
 # Networking:
 yt-dlv --proxy socks5://user:pass@host:1080 URL         # route via http(s)/socks5 proxy
+
+# Metadata & sidecars:
+yt-dlv --print title --print id URL                     # print fields and exit
+yt-dlv --skip-download --write-subs --sub-langs en URL  # subtitles only
+yt-dlv --write-thumbnail --write-description URL         # thumbnail + description
+yt-dlv --flat-playlist --print id 'https://youtube.com/playlist?list=PL...'
+
+# Post-processing & other sources:
+yt-dlv -x --audio-format mp3 URL                        # extract audio (ffmpeg)
+yt-dlv https://example.com/video.mp4                    # generic: direct media
+yt-dlv https://example.com/stream.m3u8                  # generic: HLS
 ```
 
 Format selection mirrors yt-dlp: `best`/`worst`, `bv*`/`ba*`, `+` to merge,
@@ -75,8 +86,16 @@ Implemented and tested end-to-end:
   from live YouTube.
 - **Format selection**: `best`/`worst`, `bv*`/`ba*`, `+` merges, `/` fallbacks,
   `[filters]`, explicit ids.
-- **Download engine**: ranged HTTP with resume-from-partial (hermetic local-server test).
-- **Muxing**: ffmpeg stream-copy of video+audio, with mkv fallback.
+- **Download engine**: ranged HTTP with resume-from-partial (hermetic local-server test),
+  plus a native **HLS (m3u8)** downloader.
+- **Muxing & audio**: ffmpeg stream-copy of video+audio (mkv fallback) and
+  `-x`/`--extract-audio` (mp3/m4a/opus/…).
+- **Playlists**: `/playlist?list=` extraction + per-entry re-extraction, `--flat-playlist`.
+- **Subtitles**: `--list-subs`, `--write-subs`, `--write-auto-subs`, `--sub-langs`.
+- **Sidecars/metadata**: `--print`, `--skip-download`, `--write-info-json`,
+  `--write-thumbnail`, `--write-description`.
+- **Generic extractor**: downloads direct media URLs and HLS streams from arbitrary
+  sites (verified end-to-end — no YouTube PO-token wall).
 - **Auth & networking**: Netscape `--cookies`, `--cookies-from-browser`
   (Firefox + Chromium-family decryption), and http/https/`socks5` proxies.
 
