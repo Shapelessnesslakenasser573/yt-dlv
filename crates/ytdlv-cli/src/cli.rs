@@ -41,6 +41,10 @@ pub struct Cli {
     #[arg(long = "flat-playlist")]
     pub flat_playlist: bool,
 
+    /// 1-based playlist items to take, e.g. `1-3,7,10-` (ranges + lists).
+    #[arg(short = 'I', long = "playlist-items", value_name = "ITEMS")]
+    pub playlist_items: Option<String>,
+
     /// Extract audio after download (requires ffmpeg).
     #[arg(short = 'x', long = "extract-audio")]
     pub extract_audio: bool,
