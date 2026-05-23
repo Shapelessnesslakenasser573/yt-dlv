@@ -81,8 +81,16 @@ impl Extractor for YoutubeExtractor {
                 tracing::warn!("unknown player client '{key}', skipping");
                 continue;
             };
-            // JS-player clients are useless without a solver.
-            if client.requires_player && solver.is_none() {
+            // A JS-player client (web/tv) only yields usable URLs if the solver
+            // can actually descramble sig AND n. When our base.js parsing fails
+            // (the known regex-staleness, issue #1), querying these clients just
+            // surfaces formats whose URLs 403 at the CDN — so skip them and let
+            // the direct-URL clients (ios/android_vr) answer instead.
+            if should_skip_client(client.requires_player, solver.as_ref()) {
+                tracing::info!(
+                    "skipping client '{}' (needs JS player but sig/n unavailable)",
+                    client.key
+                );
                 continue;
             }
             tracing::info!("querying InnerTube client '{}'", client.key);
@@ -106,13 +114,15 @@ impl Extractor for YoutubeExtractor {
             let empty = PlayerSolver::from_base_js("");
             let used_solver = solver.as_ref().unwrap_or(&empty);
             let parsed = player::parse_formats(&resp, used_solver, ctx.js);
-            tracing::info!("client '{}' yielded {} formats", client.key, parsed.len());
 
+            let mut added = 0usize;
             for f in parsed {
                 if !formats.iter().any(|e: &ytdlv_core::Format| e.format_id == f.format_id) {
                     formats.push(f);
+                    added += 1;
                 }
             }
+            tracing::info!("client '{}' contributed {} new formats", client.key, added);
             if details.is_none() {
                 details = Some(player::parse_video_details(&resp));
                 first_resp = Some(resp);
@@ -250,6 +260,14 @@ fn parse_thumbnails(resp: &Value, video_id: &str) -> Vec<Thumbnail> {
     out
 }
 
+/// Whether to skip an InnerTube client. A client that requires the JS player is
+/// only useful when the solver can descramble both the signature and `n`;
+/// otherwise its formats resolve to URLs the CDN rejects. Direct-URL clients
+/// (`requires_player == false`) are never skipped on this basis.
+fn should_skip_client(requires_player: bool, solver: Option<&PlayerSolver>) -> bool {
+    requires_player && !solver.is_some_and(|s| s.has_sig() && s.has_nsig())
+}
+
 fn parse_upload_date(resp: &Value) -> Option<String> {
     let raw = resp
         .pointer("/microformat/playerMicroformatRenderer/uploadDate")
@@ -294,6 +312,28 @@ mod tests {
             find_player_js_url(html).as_deref(),
             Some("https://www.youtube.com/s/player/abcd1234/player_ias.vflset/en_US/base.js")
         );
+    }
+
+    #[test]
+    fn skips_js_player_clients_only_when_solver_cannot_solve() {
+        use super::signature::PlayerSolver;
+
+        // A solver that can't locate the functions (e.g. current obfuscated base.js).
+        let broken = PlayerSolver::from_base_js("var x=1;");
+        assert!(!broken.has_sig() && !broken.has_nsig());
+
+        // JS-player client (web/tv): skipped when the solver is broken or absent...
+        assert!(should_skip_client(true, Some(&broken)));
+        assert!(should_skip_client(true, None));
+
+        // ...but used when the solver works (fixture mirrors base.js structure).
+        let working = PlayerSolver::from_base_js(super::signature::TESTS_FIXTURE);
+        assert!(working.has_sig() && working.has_nsig());
+        assert!(!should_skip_client(true, Some(&working)));
+
+        // Direct-URL clients (ios/android_vr) are never skipped on this basis.
+        assert!(!should_skip_client(false, None));
+        assert!(!should_skip_client(false, Some(&broken)));
     }
 
     #[test]

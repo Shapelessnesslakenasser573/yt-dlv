@@ -445,27 +445,31 @@ fn scan_regex(s: &str, slash_idx: usize) -> Option<usize> {
     None
 }
 
+/// A fixture mimicking `base.js` structure: a helper object, a signature
+/// function that reverses/swaps/splices, an n-function that uses a global array,
+/// and the call sites whose patterns our regexes target. Shared with the
+/// extractor's own tests.
+#[cfg(test)]
+pub(crate) const TESTS_FIXTURE: &str = r#"
+    var Xq={
+        wZ:function(a){a.reverse()},
+        J9:function(a,b){var c=a[0];a[0]=a[b%a.length];a[b%a.length]=c},
+        kP:function(a,b){a.splice(0,b)}
+    };
+    Mca=function(a){a=a.split("");Xq.wZ(a,52);Xq.J9(a,3);Xq.kP(a,1);Xq.J9(a,21);return a.join("")};
+    var Gn=["0","1","2","3","4","5"];
+    Dz=function(a){var b=a.split("");b.reverse();return Gn[1]+b.join("")+Gn[0]};
+    if(c&&(c=Mca(decodeURIComponent(c)))){};
+    somevar.get("n"))&&(b=Dz(b));
+    var x={signatureTimestamp:19834,foo:1};
+"#;
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use ytdlv_jsruntime::QuickJsRuntime;
 
-    // A fixture mimicking base.js structure: a helper object, a signature
-    // function that reverses/swaps/splices, an n-function that uses a global
-    // array, and the call sites whose patterns our regexes target.
-    const FIXTURE: &str = r#"
-        var Xq={
-            wZ:function(a){a.reverse()},
-            J9:function(a,b){var c=a[0];a[0]=a[b%a.length];a[b%a.length]=c},
-            kP:function(a,b){a.splice(0,b)}
-        };
-        Mca=function(a){a=a.split("");Xq.wZ(a,52);Xq.J9(a,3);Xq.kP(a,1);Xq.J9(a,21);return a.join("")};
-        var Gn=["0","1","2","3","4","5"];
-        Dz=function(a){var b=a.split("");b.reverse();return Gn[1]+b.join("")+Gn[0]};
-        if(c&&(c=Mca(decodeURIComponent(c)))){};
-        somevar.get("n"))&&(b=Dz(b));
-        var x={signatureTimestamp:19834,foo:1};
-    "#;
+    const FIXTURE: &str = TESTS_FIXTURE;
 
     #[test]
     fn finds_signature_function_name() {
