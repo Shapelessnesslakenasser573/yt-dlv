@@ -48,7 +48,10 @@ pub struct Cli {
     #[arg(long = "force-overwrites")]
     pub force_overwrites: bool,
 
-    /// HTTP/HTTPS/SOCKS proxy URL.
+    /// Proxy URL for all traffic: `http://`, `https://`, or `socks5://`
+    /// (credentials allowed, e.g. `socks5://user:pass@host:1080`). Pass an
+    /// empty string (`--proxy ""`) to ignore HTTP(S)_PROXY env vars. Useful to
+    /// route through a residential IP when YouTube blocks datacenter IPs.
     #[arg(long = "proxy")]
     pub proxy: Option<String>,
 

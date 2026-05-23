@@ -137,8 +137,19 @@ impl HttpClientBuilder {
             .timeout(Duration::from_secs(60))
             .connect_timeout(Duration::from_secs(20));
 
-        if let Some(proxy) = self.proxy {
-            builder = builder.proxy(reqwest::Proxy::all(&proxy)?);
+        // Proxy precedence:
+        //   Some(non-empty) -> route all traffic through it (http/https/socks5).
+        //   Some("")        -> explicitly disable, ignoring HTTP(S)_PROXY env.
+        //   None            -> reqwest default (honours HTTP(S)_PROXY env).
+        match self.proxy.as_deref() {
+            Some("") => builder = builder.no_proxy(),
+            Some(proxy) => {
+                builder = builder.proxy(
+                    reqwest::Proxy::all(proxy)
+                        .map_err(|e| anyhow::anyhow!("invalid proxy '{proxy}': {e}"))?,
+                )
+            }
+            None => {}
         }
 
         Ok(HttpClient { inner: builder.build()? })
@@ -147,3 +158,30 @@ impl HttpClientBuilder {
 
 /// Shared handle type used throughout the pipeline.
 pub type SharedHttp = Arc<HttpClient>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builds_with_http_proxy() {
+        assert!(HttpClient::builder().proxy(Some("http://127.0.0.1:8080".into())).build().is_ok());
+    }
+
+    #[test]
+    fn builds_with_socks5_proxy() {
+        // Fails to build unless reqwest's `socks` feature is enabled.
+        assert!(HttpClient::builder().proxy(Some("socks5://127.0.0.1:1080".into())).build().is_ok());
+    }
+
+    #[test]
+    fn empty_proxy_disables_and_builds() {
+        assert!(HttpClient::builder().proxy(Some(String::new())).build().is_ok());
+    }
+
+    #[test]
+    fn invalid_proxy_errors() {
+        let err = HttpClient::builder().proxy(Some("http://bad host with spaces".into())).build();
+        assert!(err.is_err());
+    }
+}
