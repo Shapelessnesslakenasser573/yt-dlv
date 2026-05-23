@@ -28,9 +28,38 @@ pub struct Cli {
     #[arg(short = 'j', long = "dump-json")]
     pub dump_json: bool,
 
+    /// Print specific field(s) and exit, e.g. `--print title --print id`.
+    /// Use `url` to print the selected format URL(s). Repeatable.
+    #[arg(long = "print", value_name = "FIELD")]
+    pub print: Vec<String>,
+
+    /// Don't download the video (sidecars like --write-subs still run).
+    #[arg(long = "skip-download")]
+    pub skip_download: bool,
+
     /// Write the info JSON next to the downloaded file.
     #[arg(long = "write-info-json")]
     pub write_info_json: bool,
+
+    /// List available subtitle languages and exit.
+    #[arg(long = "list-subs")]
+    pub list_subs: bool,
+
+    /// Write subtitle files for the selected languages.
+    #[arg(long = "write-subs")]
+    pub write_subs: bool,
+
+    /// Write automatic (ASR) captions for the selected languages.
+    #[arg(long = "write-auto-subs")]
+    pub write_auto_subs: bool,
+
+    /// Comma-separated subtitle languages (e.g. `en,de`), or `all`.
+    #[arg(long = "sub-langs", default_value = "en")]
+    pub sub_langs: String,
+
+    /// Subtitle format to download (vtt, srv3, ttml, json3).
+    #[arg(long = "sub-format", default_value = "vtt")]
+    pub sub_format: String,
 
     /// Output filename template.
     #[arg(

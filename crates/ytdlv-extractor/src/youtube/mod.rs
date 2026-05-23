@@ -145,6 +145,7 @@ impl Extractor for YoutubeExtractor {
 
         let details = details.unwrap_or_default();
         let resp = first_resp.unwrap_or(Value::Null);
+        let (subtitles, automatic_captions) = player::parse_subtitles(&resp);
 
         let info = InfoDict {
             id: if details.id.is_empty() {
@@ -173,6 +174,8 @@ impl Extractor for YoutubeExtractor {
             extractor: Some("youtube".into()),
             extractor_key: Some("Youtube".into()),
             is_live: details.is_live,
+            subtitles,
+            automatic_captions,
             ..Default::default()
         };
 
