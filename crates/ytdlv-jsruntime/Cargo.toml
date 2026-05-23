@@ -1,0 +1,11 @@
+[package]
+name = "ytdlv-jsruntime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+rquickjs = { version = "0.9", features = ["bindgen"] }
