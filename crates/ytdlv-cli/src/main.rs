@@ -63,9 +63,13 @@ async fn process_url(
         Extraction::Video(info) => handle_video(*info, cli, http).await,
         Extraction::Playlist(pl) => {
             let name = pl.title.clone().unwrap_or_else(|| pl.id.clone());
-            tracing::info!("playlist '{name}' with {} entries", pl.entries.len());
+            let entries = match &cli.playlist_items {
+                Some(spec) => filter_playlist_items(&pl.entries, spec),
+                None => pl.entries,
+            };
+            tracing::info!("playlist '{name}' with {} entries", entries.len());
             let mut err = None;
-            for entry in pl.entries {
+            for entry in entries {
                 // Flat: list the stub as-is. Otherwise re-extract the entry to
                 // a full video (so formats/subtitles are available).
                 let result = if cli.flat_playlist {
@@ -92,6 +96,39 @@ async fn process_url(
             }
         }
     }
+}
+
+/// Select playlist entries by a 1-based spec like `1-3,7,10-` (spec order is
+/// preserved, matching yt-dlp).
+fn filter_playlist_items(entries: &[InfoDict], spec: &str) -> Vec<InfoDict> {
+    parse_item_spec(spec, entries.len())
+        .into_iter()
+        .filter_map(|i| entries.get(i - 1).cloned())
+        .collect()
+}
+
+fn parse_item_spec(spec: &str, len: usize) -> Vec<usize> {
+    let mut out = Vec::new();
+    for tok in spec.split(',') {
+        let tok = tok.trim();
+        if tok.is_empty() {
+            continue;
+        }
+        if let Some((a, b)) = tok.split_once('-') {
+            let start = a.trim().parse::<usize>().unwrap_or(1).max(1);
+            let end = if b.trim().is_empty() {
+                len
+            } else {
+                b.trim().parse::<usize>().unwrap_or(len).min(len)
+            };
+            out.extend((start..=end).filter(|&i| i >= 1 && i <= len));
+        } else if let Ok(n) = tok.parse::<usize>() {
+            if n >= 1 && n <= len {
+                out.push(n);
+            }
+        }
+    }
+    out
 }
 
 /// Find the matching extractor and run it.
@@ -456,4 +493,20 @@ fn init_tracing(verbose: u8, quiet: bool) {
         .without_time()
         .with_writer(std::io::stderr)
         .init();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_item_spec;
+
+    #[test]
+    fn parses_ranges_lists_and_open_ends() {
+        assert_eq!(parse_item_spec("1-3,7", 10), vec![1, 2, 3, 7]);
+        assert_eq!(parse_item_spec("5", 10), vec![5]);
+        assert_eq!(parse_item_spec("8-", 10), vec![8, 9, 10]);
+        // Spec order is preserved; out-of-range is clamped/dropped.
+        assert_eq!(parse_item_spec("3,1", 5), vec![3, 1]);
+        assert_eq!(parse_item_spec("4-100", 5), vec![4, 5]);
+        assert!(parse_item_spec("99", 5).is_empty());
+    }
 }
